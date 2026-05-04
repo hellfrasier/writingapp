@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dangerous Writer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,300&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* ── Themes ───────────────────────────────────────────────── */
+body.theme-dark {
+  --bg:           #0d0d0d;
+  --surface:      #161616;
+  --border:       #2a2a2a;
+  --text:         #c8ffa0;
+  --text-dim:     #4a6a3a;
+  --text-danger:  #ff4444;
+  --accent:       #c8ffa0;
+  --accent-bg:    #0d0d0d;
+  --timer-safe:   #4caf50;
+  --timer-warn:   #f0b429;
+  --timer-danger: #ff4444;
+  --scanline:     rgba(0,0,0,0.10);
+  --glow:         0 0 16px rgba(200,255,160,0.13);
+}
+body.theme-light {
+  --bg:           #f2efe4;
+  --surface:      #e8e4d8;
+  --border:       #ccc7b4;
+  --text:         #1a1a0e;
+  --text-dim:     #8a8570;
+  --text-danger:  #c42000;
+  --accent:       #1a5218;
+  --accent-bg:    #f2efe4;
+  --timer-safe:   #2e7d32;
+  --timer-warn:   #a05c00;
+  --timer-danger: #c42000;
+  --scanline:     rgba(0,0,0,0.03);
+  --glow:         none;
+}
+body.theme-amber {
+  --bg:           #0f0900;
+  --surface:      #1a1100;
+  --border:       #3a2c00;
+  --text:         #ffb000;
+  --text-dim:     #7a5a00;
+  --text-danger:  #ff5500;
+  --accent:       #ffb000;
+  --accent-bg:    #0f0900;
+  --timer-safe:   #b87800;
+  --timer-warn:   #ff8800;
+  --timer-danger: #ff5500;
+  --scanline:     rgba(0,0,0,0.14);
+  --glow:         0 0 16px rgba(255,176,0,0.10);
+}
+
+/* ── Scanlines overlay ────────────────────────────────────── */
+#scanlines {
+  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg, var(--scanline) 0, var(--scanline) 1px, transparent 1px, transparent 4px
+  );
+}
+
+/* ── Screens ──────────────────────────────────────────────── */
+.screen {
+  display: none;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  position: relative;
+  overflow: hidden;
+}
+.screen.active { display: flex; }
+
+/* ── SETUP SCREEN ─────────────────────────────────────────── */
+#setup { overflow-y: auto; }
+
+.setup-inner {
+  width: 100%; max-width: 560px;
+  display: flex; flex-direction: column; gap: 0;
+  position: relative; z-index: 1;
+}
+
+.setup-header { margin-bottom: 40px; }
+
+.setup-prompt {
+  font-size: 11px; letter-spacing: 0.14em;
+  color: var(--text-dim); margin-bottom: 10px;
+}
+
+.setup-title {
+  font-size: clamp(26px, 5vw, 46px);
+  font-weight: 700; letter-spacing: 0.04em;
+  line-height: 1.1; color: var(--text);
+  text-shadow: var(--glow);
+}
+
+.setup-title .dim { color: var(--text-dim); }
+
+.blink {
+  color: var(--accent);
+  animation: blink 1s step-end infinite;
+}
+
+.setup-sub {
+  font-size: 12px; color: var(--text-dim);
+  margin-top: 10px; letter-spacing: 0.06em;
+}
+
+/* Panel */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 32px 36px;
+  display: flex; flex-direction: column; gap: 26px;
+}
+
+.field { display: flex; flex-direction: column; gap: 10px; }
+
+.field-label {
+  font-size: 10px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+
+hr.divider {
+  border: none; border-top: 1px solid var(--border);
+}
+
+/* Goal type toggle */
+.toggle {
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.toggle-btn {
+  flex: 1; padding: 9px 0; background: transparent;
+  color: var(--text-dim); border: none; cursor: pointer;
+  font-family: inherit; font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  transition: all 0.15s;
+}
+.toggle-btn.active {
+  background: var(--accent); color: var(--accent-bg); font-weight: 700;
+}
+
+/* Number input row */
+.input-row { display: flex; align-items: center; gap: 10px; }
+
+input[type="number"] {
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); font-family: inherit;
+  font-size: 20px; padding: 7px 12px;
+  outline: none; width: 110px; text-align: center;
+  transition: border-color 0.2s;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button { opacity: 0.3; }
+input[type="number"]:focus { border-color: var(--accent); }
+
+.unit { font-size: 11px; color: var(--text-dim); letter-spacing: 0.1em; }
+
+/* Presets */
+.presets { display: flex; gap: 8px; flex-wrap: wrap; }
+.preset-btn {
+  padding: 5px 12px; background: transparent;
+  color: var(--text-dim); border: 1px solid var(--border);
+  cursor: pointer; font-family: inherit;
+  font-size: 11px; letter-spacing: 0.08em; transition: all 0.15s;
+}
+.preset-btn.active {
+  background: var(--accent-bg); color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Theme switcher */
+.theme-row { display: flex; gap: 10px; }
+.theme-btn {
+  flex: 1; padding: 14px 8px; cursor: pointer;
+  font-family: inherit; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  text-align: center; border: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+.theme-btn.dark-btn  { background: #0d0d0d; color: #c8ffa0; border-color: #2a2a2a; }
+.theme-btn.light-btn { background: #f2efe4; color: #1a1a0e; border-color: #ccc7b4; }
+.theme-btn.amber-btn { background: #0f0900; color: #ffb000; border-color: #3a2c00; }
+.theme-btn.active.dark-btn  { border-color: #c8ffa0; }
+.theme-btn.active.light-btn { border-color: #1a1a0e; }
+.theme-btn.active.amber-btn { border-color: #ffb000; }
+
+/* Start button */
+.start-btn {
+  padding: 16px; background: var(--accent); color: var(--accent-bg);
+  border: 1px solid var(--accent); cursor: pointer;
+  font-family: inherit; font-size: 13px;
+  letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700;
+  width: 100%; transition: opacity 0.15s;
+}
+.start-btn:hover { opacity: 0.8; }
+
+/* Generic btn */
+.btn {
+  padding: 8px 16px; background: transparent; color: var(--text);
+  border: 1px solid var(--border); cursor: pointer;
+  font-family: inherit; font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  transition: all 0.15s; white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── WRITING SCREEN ───────────────────────────────────────── */
+#writing {
+  padding: 0; align-items: stretch; justify-content: flex-start;
+}
+
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 24px; border-bottom: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+  position: relative; z-index: 10;
+}
+
+.stats { display: flex; gap: 24px; }
+
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat-label {
+  font-size: 9px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.stat-value { font-size: 16px; font-weight: 700; letter-spacing: 0.04em; }
+
+/* Danger timer in top bar */
+.timer-section {
+  display: flex; flex-direction: column; gap: 6px;
+  flex: 1; max-width: 280px; margin: 0 24px;
+}
+.timer-top {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.timer-label {
+  font-size: 9px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--text-dim);
+  transition: color 0.2s;
+}
+.timer-label.danger { color: var(--text-danger); }
+.timer-secs { font-size: 9px; letter-spacing: 0.1em; }
+
+.timer-track {
+  height: 3px; background: var(--border); overflow: hidden;
+}
+.timer-fill {
+  height: 100%; background: var(--timer-safe);
+  transition: background 0.3s, width 0.1s linear;
+}
+
+/* Finish button in top bar */
+.finish-btn {
+  padding: 8px 18px; background: var(--accent); color: var(--accent-bg);
+  border: 1px solid var(--accent); cursor: pointer;
+  font-family: inherit; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
+  transition: opacity 0.15s;
+}
+.finish-btn:hover { opacity: 0.8; }
+
+/* Editor area */
+#editor-wrap {
+  flex: 1; overflow-y: auto; padding: clamp(24px,5vw,72px) clamp(24px,10vw,148px);
+  position: relative; z-index: 1;
+}
+
+#editor {
+  width: 100%; min-height: 100%;
+  background: transparent; border: none; outline: none;
+  resize: none; font-family: inherit;
+  font-size: 18px; line-height: 1.9;
+  color: var(--text); caret-color: var(--accent);
+  transition: color 0.2s;
+}
+#editor.danger-text { color: var(--text-danger); }
+#editor::placeholder { color: var(--text-dim); font-style: italic; }
+
+/* Bottom progress bar */
+.bottom-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 24px; border-top: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0; z-index: 10;
+}
+.progress-label {
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap;
+}
+.progress-track {
+  flex: 1; height: 2px; background: var(--border); overflow: hidden;
+}
+.progress-fill {
+  height: 100%; background: var(--accent); transition: width 0.4s ease;
+}
+.progress-right {
+  font-size: 9px; color: var(--accent);
+  letter-spacing: 0.1em; white-space: nowrap;
+}
+
+/* ── FAIL SCREEN ──────────────────────────────────────────── */
+#fail {
+  background: #110000 !important;
+  color: #ff3333;
+}
+.fail-prompt {
+  font-size: 11px; letter-spacing: 0.2em;
+  color: rgba(255,50,50,0.4); margin-bottom: 20px;
+}
+.fail-title {
+  font-size: clamp(44px,9vw,88px); font-weight: 700;
+  letter-spacing: 0.06em; line-height: 1.05;
+  text-align: center; margin-bottom: 20px;
+  animation: glitch 0.4s infinite;
+}
+.fail-sub {
+  font-size: 13px; color: rgba(255,80,80,0.55);
+  letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 32px;
+}
+.fail-btn {
+  padding: 14px 32px; background: transparent; color: #ff3333;
+  border: 1px solid #ff3333; cursor: pointer;
+  font-family: inherit; font-size: 12px;
+  letter-spacing: 0.18em; text-transform: uppercase; transition: all 0.15s;
+}
+.fail-btn:hover { background: #ff3333; color: #000; }
+
+/* ── DONE SCREEN ──────────────────────────────────────────── */
+.done-prompt {
+  font-size: 10px; letter-spacing: 0.2em;
+  color: var(--text-dim); margin-bottom: 20px;
+}
+.done-title {
+  font-size: clamp(32px,6vw,60px); font-weight: 700;
+  line-height: 1.1; letter-spacing: 0.06em;
+  color: var(--timer-safe); text-align: center; margin-bottom: 28px;
+  text-shadow: var(--glow);
+}
+.done-stats { display: flex; gap: 36px; justify-content: center; margin-bottom: 28px; }
+.done-stat { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.done-stat-label {
+  font-size: 9px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.done-stat-value { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; }
+.done-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.done-note {
+  margin-top: 16px; font-size: 11px;
+  color: var(--timer-safe); letter-spacing: 0.06em; min-height: 18px;
+  text-align: center;
+}
+
+/* ── Animations ───────────────────────────────────────────── */
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+@keyframes glitch {
+  0%   { text-shadow: none; }
+  20%  { text-shadow: 3px 0 0 rgba(0,255,80,0.4), -3px 0 0 rgba(0,80,255,0.4); }
+  40%  { text-shadow: -2px 0 0 rgba(255,0,80,0.4), 2px 0 0 rgba(0,255,200,0.4); }
+  60%  { text-shadow: none; }
+  80%  { text-shadow: 2px 0 0 rgba(255,200,0,0.3), -2px 0 0 rgba(0,100,255,0.3); }
+  100% { text-shadow: none; }
+}
+
+/* danger bg pulse */
+#writing.danger-bg {
+  animation: dangerPulse 0.6s ease infinite alternate;
+}
+@keyframes dangerPulse {
+  from { background: var(--bg); }
+  to   { background: color-mix(in srgb, var(--bg) 88%, var(--text-danger) 12%); }
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border); }
+</style>
+</head>
+<body class="theme-dark">
+
+<div id="scanlines"></div>
+
+<!-- ══════════════════════════════════════════
+     SETUP SCREEN
+═══════════════════════════════════════════ -->
+<div id="setup" class="screen active">
+  <div class="setup-inner">
+
+    <div class="setup-header">
+      <div class="setup-prompt">$ ./dangerous-writer --configure</div>
+      <h1 class="setup-title">
+        dangerous<span class="dim">_</span>writer<span class="blink">▊</span>
+      </h1>
+      <p class="setup-sub">stop typing for 5 seconds → everything is gone</p>
+    </div>
+
+    <div class="panel">
+
+      <!-- Goal type -->
+      <div class="field">
+        <div class="field-label">// goal type</div>
+        <div class="toggle">
+          <button class="toggle-btn active" id="btn-time" onclick="setGoalType('time')">
+            ⏱&nbsp; Time
+          </button>
+          <button class="toggle-btn" id="btn-words" onclick="setGoalType('words')">
+            ◈&nbsp; Words
+          </button>
+        </div>
+      </div>
+
+      <!-- Goal amount -->
+      <div class="field">
+        <div class="field-label" id="goal-label">// duration</div>
+        <div class="input-row">
+          <input type="number" id="goal-input" value="5" min="1">
+          <span class="unit" id="goal-unit">min</span>
+        </div>
+        <div class="presets" id="presets-wrap">
+          <!-- filled by JS -->
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Theme -->
+      <div class="field">
+        <div class="field-label">// terminal theme</div>
+        <div class="theme-row">
+          <button class="theme-btn dark-btn active" onclick="setTheme('dark')">
+            ●<br>Dark
+          </button>
+          <button class="theme-btn light-btn" onclick="setTheme('light')">
+            ○<br>Light
+          </button>
+          <button class="theme-btn amber-btn" onclick="setTheme('amber')">
+            ◆<br>Amber
+          </button>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Start -->
+      <button class="start-btn" onclick="startSession()">
+        $ begin_session
+      </button>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     WRITING SCREEN
+═══════════════════════════════════════════ -->
+<div id="writing" class="screen">
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-label">words</span>
+        <span class="stat-value" id="stat-words">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">chars</span>
+        <span class="stat-value" id="stat-chars">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">time</span>
+        <span class="stat-value" id="stat-time">0s</span>
+      </div>
+    </div>
+
+    <div class="timer-section">
+      <div class="timer-top">
+        <span class="timer-label" id="timer-label">danger timer</span>
+        <span class="timer-secs" id="timer-secs" style="color:var(--timer-safe)">5.0s</span>
+      </div>
+      <div class="timer-track">
+        <div class="timer-fill" id="timer-fill" style="width:100%"></div>
+      </div>
+    </div>
+
+    <button class="finish-btn" onclick="finishSession()">Finish</button>
+  </div>
+
+  <!-- Editor -->
+  <div id="editor-wrap">
+    <textarea
+      id="editor"
+      placeholder="start typing. don't stop.&#10;&#10;5 seconds of silence and everything disappears."
+      spellcheck="true"
+      autocorrect="on"
+    ></textarea>
+  </div>
+
+  <!-- Bottom progress bar -->
+  <div class="bottom-bar">
+    <span class="progress-label" id="progress-goal">goal: 5min</span>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <span class="progress-right" id="progress-right">0% — 5m left</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     FAIL SCREEN
+═══════════════════════════════════════════ -->
+<div id="fail" class="screen">
+  <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;">
+    <div class="fail-prompt">$ error: inactivity_timeout — session_terminated</div>
+    <div class="fail-title">YOU<br>STOPPED.</div>
+    <div class="fail-sub">all progress has been deleted.</div>
+    <button class="fail-btn" onclick="goSetup()">$ try_again</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     DONE SCREEN
+═══════════════════════════════════════════ -->
+<div id="done" class="screen">
+  <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;width:100%;max-width:480px;">
+    <div class="done-prompt">$ session_complete — exit_code 0</div>
+    <div class="done-title">GOAL<br>REACHED.</div>
+    <div class="done-stats">
+      <div class="done-stat">
+        <span class="done-stat-label">words</span>
+        <span class="done-stat-value" id="done-words">0</span>
+      </div>
+      <div class="done-stat">
+        <span class="done-stat-label">chars</span>
+        <span class="done-stat-value" id="done-chars">0</span>
+      </div>
+      <div class="done-stat">
+        <span class="done-stat-label">time</span>
+        <span class="done-stat-value" id="done-time">0s</span>
+      </div>
+    </div>
+    <div class="done-actions">
+      <button class="btn" onclick="copyText()">Copy Text</button>
+      <button class="btn" onclick="downloadText()">Download .txt</button>
+      <button class="btn" style="background:var(--accent);color:var(--accent-bg);border-color:var(--accent);" onclick="goSetup()">New Session</button>
+    </div>
+    <div class="done-note" id="done-note"></div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════ */
+const DANGER_WINDOW = 5; // seconds
+
+const state = {
+  goalType:    'time',
+  goalAmount:  5,
+  theme:       'dark',
+
+  // session
+  text:        '',
+  countdown:   DANGER_WINDOW,
+  elapsed:     0,
+  sessionStart: null,
+  countdownId:  null,
+  elapsedId:    null,
+  inDanger:     false,
+};
+
+/* ═══════════════════════════════════════════════════════════
+   SCREEN ROUTING
+═══════════════════════════════════════════════════════════ */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SETUP
+═══════════════════════════════════════════════════════════ */
+const TIME_PRESETS  = [5, 10, 20, 30, 60];
+const WORD_PRESETS  = [100, 250, 500, 750, 1000];
+
+function setGoalType(type) {
+  state.goalType = type;
+  document.getElementById('btn-time').classList.toggle('active',  type === 'time');
+  document.getElementById('btn-words').classList.toggle('active', type === 'words');
+  document.getElementById('goal-label').textContent = type === 'time' ? '// duration' : '// word count target';
+  document.getElementById('goal-unit').textContent  = type === 'time' ? 'min' : 'words';
+  const defaultAmount = type === 'time' ? 5 : 250;
+  state.goalAmount = defaultAmount;
+  document.getElementById('goal-input').value = defaultAmount;
+  renderPresets();
+}
+
+function renderPresets() {
+  const presets = state.goalType === 'time' ? TIME_PRESETS : WORD_PRESETS;
+  const suffix  = state.goalType === 'time' ? 'm' : 'w';
+  const wrap    = document.getElementById('presets-wrap');
+  wrap.innerHTML = presets.map(p => `
+    <button class="preset-btn ${p === state.goalAmount ? 'active' : ''}"
+            onclick="selectPreset(${p})">${p}${suffix}</button>
+  `).join('');
+}
+
+function selectPreset(amount) {
+  state.goalAmount = amount;
+  document.getElementById('goal-input').value = amount;
+  renderPresets();
+}
+
+document.getElementById('goal-input').addEventListener('input', function() {
+  const n = parseInt(this.value, 10);
+  if (!isNaN(n) && n > 0) {
+    state.goalAmount = n;
+    renderPresets();
+  }
+});
+
+function setTheme(theme) {
+  state.theme = theme;
+  document.body.className = `theme-${theme}`;
+  document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.${theme}-btn`).classList.add('active');
+}
+
+// Init presets on load
+renderPresets();
+
+/* ═══════════════════════════════════════════════════════════
+   SESSION START
+═══════════════════════════════════════════════════════════ */
+function startSession() {
+  state.text        = '';
+  state.elapsed     = 0;
+  state.countdown   = DANGER_WINDOW;
+  state.inDanger    = false;
+  state.sessionStart = Date.now();
+
+  const editor = document.getElementById('editor');
+  editor.value = '';
+  editor.classList.remove('danger-text');
+  document.getElementById('writing').classList.remove('danger-bg');
+
+  updateStats();
+  updateProgress();
+  updateTimerBar(1);
+
+  showScreen('writing');
+  editor.focus();
+
+  startCountdown();
+  startElapsed();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COUNTDOWN (danger timer)
+═══════════════════════════════════════════════════════════ */
+function startCountdown() {
+  clearInterval(state.countdownId);
+  state.countdownId = setInterval(() => {
+    state.countdown = Math.max(0, parseFloat((state.countdown - 0.1).toFixed(2)));
+    const ratio = state.countdown / DANGER_WINDOW;
+
+    updateTimerBar(ratio);
+
+    if (ratio < 0.5) {
+      setDanger(true);
+    }
+
+    if (state.countdown <= 0) {
+      clearInterval(state.countdownId);
+      clearInterval(state.elapsedId);
+      triggerFail();
+    }
+  }, 100);
+}
+
+function resetCountdown() {
+  state.countdown = DANGER_WINDOW;
+  setDanger(false);
+  clearInterval(state.countdownId);
+  startCountdown();
+}
+
+function setDanger(on) {
+  state.inDanger = on;
+  const writing = document.getElementById('writing');
+  const editor  = document.getElementById('editor');
+  const label   = document.getElementById('timer-label');
+  writing.classList.toggle('danger-bg', on);
+  editor.classList.toggle('danger-text', on);
+  label.classList.toggle('danger', on);
+  label.textContent = on ? '⚠ danger' : 'danger timer';
+}
+
+function updateTimerBar(ratio) {
+  const fill  = document.getElementById('timer-fill');
+  const secs  = document.getElementById('timer-secs');
+  const color = ratio > 0.5
+    ? 'var(--timer-safe)'
+    : ratio > 0.25
+    ? 'var(--timer-warn)'
+    : 'var(--timer-danger)';
+
+  fill.style.width      = `${ratio * 100}%`;
+  fill.style.background = color;
+  secs.textContent      = state.countdown.toFixed(1) + 's';
+  secs.style.color      = color;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ELAPSED CLOCK
+═══════════════════════════════════════════════════════════ */
+function startElapsed() {
+  clearInterval(state.elapsedId);
+  state.elapsedId = setInterval(() => {
+    state.elapsed = Math.floor((Date.now() - state.sessionStart) / 1000);
+    updateStats();
+    updateProgress();
+    checkGoalMet();
+  }, 500);
+}
+
+function fmtElapsed(s) {
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EDITOR INPUT
+═══════════════════════════════════════════════════════════ */
+document.getElementById('editor').addEventListener('input', function() {
+  state.text = this.value;
+  updateStats();
+  updateProgress();
+  resetCountdown();
+  checkGoalMet();
+});
+
+function wordCount(text) {
+  return text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+}
+
+function updateStats() {
+  const wc = wordCount(state.text);
+  document.getElementById('stat-words').textContent = wc.toLocaleString();
+  document.getElementById('stat-chars').textContent = state.text.length.toLocaleString();
+  document.getElementById('stat-time').textContent  = fmtElapsed(state.elapsed);
+}
+
+function updateProgress() {
+  const wc = wordCount(state.text);
+  const elapsedMin = state.elapsed / 60;
+
+  let ratio, leftText;
+  if (state.goalType === 'time') {
+    ratio    = Math.min(1, elapsedMin / state.goalAmount);
+    const mLeft = Math.max(0, state.goalAmount - Math.floor(elapsedMin));
+    leftText = `${Math.round(ratio * 100)}% — ${mLeft}m left`;
+  } else {
+    ratio    = Math.min(1, wc / state.goalAmount);
+    const wLeft = Math.max(0, state.goalAmount - wc);
+    leftText = `${Math.round(ratio * 100)}% — ${wLeft} words left`;
+  }
+
+  document.getElementById('progress-fill').style.width = `${ratio * 100}%`;
+  document.getElementById('progress-right').textContent = leftText;
+  document.getElementById('progress-goal').textContent =
+    `goal: ${state.goalAmount}${state.goalType === 'time' ? 'min' : ' words'}`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GOAL MET CHECK
+═══════════════════════════════════════════════════════════ */
+function checkGoalMet() {
+  const wc = wordCount(state.text);
+  const elapsedMin = state.elapsed / 60;
+  const met = state.goalType === 'time'
+    ? elapsedMin >= state.goalAmount
+    : wc >= state.goalAmount;
+
+  if (met) finishSession();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FINISH / FAIL
+═══════════════════════════════════════════════════════════ */
+function finishSession() {
+  clearInterval(state.countdownId);
+  clearInterval(state.elapsedId);
+
+  const wc = wordCount(state.text);
+  document.getElementById('done-words').textContent = wc.toLocaleString();
+  document.getElementById('done-chars').textContent = state.text.length.toLocaleString();
+  document.getElementById('done-time').textContent  = fmtElapsed(state.elapsed);
+  document.getElementById('done-note').textContent  = '';
+
+  showScreen('done');
+}
+
+function triggerFail() {
+  state.text = ''; // delete everything — that's the point
+  showScreen('fail');
+}
+
+function goSetup() {
+  clearInterval(state.countdownId);
+  clearInterval(state.elapsedId);
+  showScreen('setup');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DONE ACTIONS
+═══════════════════════════════════════════════════════════ */
+function copyText() {
+  navigator.clipboard.writeText(state.text).then(() => {
+    const note = document.getElementById('done-note');
+    note.textContent = '✓ copied to clipboard';
+    setTimeout(() => note.textContent = '', 2500);
+  });
+}
+
+function downloadText() {
+  const ts   = new Date().toISOString().slice(0,19).replace(/[:.]/g, '-');
+  const blob = new Blob([state.text], { type: 'text/plain;charset=utf-8' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `dangerous-writer-${ts}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  const note = document.getElementById('done-note');
+  note.textContent = '✓ downloaded as .txt';
+  setTimeout(() => note.textContent = '', 2500);
+}
+</script>
+</body>
+</html>
