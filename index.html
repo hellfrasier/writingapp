@@ -85,7 +85,6 @@ body.theme-amber {
   color: var(--text); text-shadow: var(--glow); margin-bottom: 6px;
 }
 .setup-title .dim { color: var(--text-dim); }
-
 .blink { color: var(--accent); animation: blink 1s step-end infinite; }
 
 .setup-sub {
@@ -94,8 +93,37 @@ body.theme-amber {
 }
 .version-tag {
   font-size: 10px; color: var(--text-dim);
-  letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 44px;
+  letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 32px;
 }
+
+/* ── Recovery banner ── */
+#recovery-banner {
+  display: none;
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 14px 18px; margin-bottom: 28px;
+  flex-direction: column; gap: 10px;
+}
+#recovery-banner.visible { display: flex; }
+.recovery-label {
+  font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--accent);
+}
+.recovery-preview {
+  font-size: 11px; color: var(--text-dim);
+  letter-spacing: 0.04em; line-height: 1.5;
+  max-height: 48px; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis;
+}
+.recovery-actions { display: flex; gap: 20px; }
+.recovery-btn {
+  background: none; border: none; padding: 0;
+  font-family: inherit; font-size: 13px; cursor: pointer;
+  letter-spacing: 0.08em; transition: opacity 0.15s;
+  text-decoration: underline; text-underline-offset: 4px;
+}
+.recovery-btn.restore { color: var(--accent); }
+.recovery-btn.dismiss { color: var(--text-dim); }
+.recovery-btn:hover   { opacity: 0.7; }
 
 .t-section { margin-bottom: 28px; }
 .t-label {
@@ -106,7 +134,6 @@ body.theme-amber {
 .t-options        { display: flex; flex-direction: column; gap: 5px; }
 .t-options-inline { flex-direction: row; gap: 20px; }
 
-/* Plain text buttons — active = underlined, inactive = dim */
 .t-opt {
   background: none; border: none; padding: 0;
   font-family: inherit; font-size: 19px; letter-spacing: 0.06em;
@@ -116,7 +143,6 @@ body.theme-amber {
 .t-opt:hover { color: var(--text); }
 .t-opt.active { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
 
-/* Number input — borderless except bottom line */
 .t-input-row {
   display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;
 }
@@ -182,7 +208,6 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
 .timer-track { height: 3px; background: var(--border); overflow: hidden; }
 .timer-fill  { height: 100%; background: var(--timer-safe); transition: background 0.3s, width 0.1s linear; }
 
-/* Top bar action buttons */
 .top-actions { display: flex; gap: 20px; align-items: center; }
 .top-btn {
   background: none; border: none; padding: 0;
@@ -194,7 +219,14 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
 .top-btn.primary { color: var(--accent); text-decoration: underline; text-underline-offset: 4px; }
 .top-btn.primary:hover { opacity: 0.7; }
 
-/* Editor */
+/* Autosave indicator */
+#autosave-indicator {
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  opacity: 0; transition: opacity 0.4s;
+}
+#autosave-indicator.show { opacity: 1; }
+
 #editor-wrap {
   flex: 1; overflow-y: auto;
   display: flex; justify-content: center;
@@ -234,6 +266,7 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
   background: var(--bg); border: 1px solid var(--border);
   padding: 40px 44px; width: 100%; max-width: 400px;
   display: flex; flex-direction: column; position: relative;
+  max-height: 90vh; overflow-y: auto;
 }
 .redo-title {
   font-size: clamp(18px, 3vw, 26px); font-weight: 700;
@@ -253,6 +286,13 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
 .redo-close:hover { color: var(--text); }
 
 /* ══════════════════════════════════════════════════════════
+   FREE WRITE MODE
+══════════════════════════════════════════════════════════ */
+body.freewrite .timer-section { display: none; }
+body.freewrite .bottom-bar    { display: none; }
+body.freewrite #autosave-indicator { display: none; }
+
+/* ══════════════════════════════════════════════════════════
    FAIL SCREEN
 ══════════════════════════════════════════════════════════ */
 #fail { background: #110000 !important; color: #ff3333; }
@@ -265,11 +305,11 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
   font-size: 11px; letter-spacing: 0.2em;
   color: rgba(255,50,50,0.4); margin-bottom: 20px;
 }
-/* No animation on title per v1.2 */
 .fail-title {
   font-size: clamp(44px, 9vw, 88px); font-weight: 700;
   letter-spacing: 0.06em; line-height: 1.05;
   text-align: center; margin-bottom: 20px;
+  /* no animation per v1.2 */
 }
 .fail-sub {
   font-size: 13px; color: rgba(255,80,80,0.55);
@@ -305,7 +345,6 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
   font-size: 12px; color: rgba(255,80,80,0.6);
   letter-spacing: 0.06em; margin-bottom: 32px; line-height: 1.6;
 }
-
 .retrieve-label {
   font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
   color: rgba(255,80,80,0.5); margin-bottom: 10px;
@@ -313,7 +352,6 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
 .retrieve-input-row {
   display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;
 }
-
 textarea#reason-input {
   background: transparent; border: none;
   border-bottom: 1px solid rgba(255,80,80,0.35);
@@ -329,7 +367,6 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
   font-size: 10px; color: rgba(255,80,80,0.35);
   letter-spacing: 0.08em; margin-bottom: 28px; min-height: 16px;
 }
-
 .retrieve-btn {
   background: none; border: none; padding: 0;
   font-family: inherit; font-size: 14px; cursor: pointer;
@@ -337,16 +374,9 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
   transition: opacity 0.15s; width: fit-content;
 }
 .retrieve-btn::before { content: '> '; }
-.retrieve-btn:hover { opacity: 0.7; }
-.retrieve-btn.locked { color: rgba(255,80,80,0.25); cursor: default; pointer-events: none; }
+.retrieve-btn:hover   { opacity: 0.7; }
+.retrieve-btn.locked  { color: rgba(255,80,80,0.25); cursor: default; pointer-events: none; }
 .retrieve-btn.unlocked { color: #ff6666; }
-
-/* ══════════════════════════════════════════════════════════
-   FREE WRITE MODE — writing screen variant, no timer
-══════════════════════════════════════════════════════════ */
-/* free-write uses #writing but with .freewrite class on body */
-body.freewrite .timer-section { display: none; }
-body.freewrite .bottom-bar    { display: none; }
 
 /* ══════════════════════════════════════════════════════════
    DONE SCREEN
@@ -361,7 +391,6 @@ body.freewrite .bottom-bar    { display: none; }
 .done-stat  { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .done-stat-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim); }
 .done-stat-value { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; }
-
 .done-actions { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
 .done-action-btn {
   background: none; border: none; padding: 0;
@@ -369,7 +398,7 @@ body.freewrite .bottom-bar    { display: none; }
   letter-spacing: 0.06em; text-decoration: underline; text-underline-offset: 4px;
   transition: color 0.15s;
 }
-.done-action-btn:hover  { color: var(--accent); }
+.done-action-btn:hover   { color: var(--accent); }
 .done-action-btn.primary { color: var(--accent); }
 .done-note { margin-top: 20px; font-size: 11px; color: var(--timer-safe); letter-spacing: 0.06em; min-height: 18px; text-align: center; }
 
@@ -397,7 +426,17 @@ body.freewrite .bottom-bar    { display: none; }
       dangerous<span class="dim">_</span>writer<span class="blink">▊</span>
     </h1>
     <p class="setup-sub">stop typing for 5 seconds → everything is gone</p>
-    <p class="version-tag">Version 1.2</p>
+    <p class="version-tag">Version 1.2.1</p>
+
+    <!-- Recovery banner — shown if unsaved text exists in localStorage -->
+    <div id="recovery-banner">
+      <div class="recovery-label">⚠ unsaved session found</div>
+      <div class="recovery-preview" id="recovery-preview"></div>
+      <div class="recovery-actions">
+        <button class="recovery-btn restore" onclick="restoreFromStorage()">restore text</button>
+        <button class="recovery-btn dismiss" onclick="dismissRecovery()">discard</button>
+      </div>
+    </div>
 
     <div class="t-section">
       <div class="t-label">goal type</div>
@@ -458,6 +497,7 @@ body.freewrite .bottom-bar    { display: none; }
     </div>
 
     <div class="top-actions">
+      <span id="autosave-indicator">saved</span>
       <button class="top-btn" onclick="openRedoOverlay()">redo goal</button>
       <button class="top-btn primary" onclick="finishSession()">finish</button>
     </div>
@@ -482,7 +522,6 @@ body.freewrite .bottom-bar    { display: none; }
 <div id="redo-overlay">
   <div class="redo-panel">
     <button class="redo-close" onclick="closeRedoOverlay()">✕ close</button>
-
     <div class="redo-title">
       redo<span style="color:var(--text-dim)">_</span>goal<span class="blink">▊</span>
     </div>
@@ -545,14 +584,12 @@ body.freewrite .bottom-bar    { display: none; }
       Enter at least 5 words explaining why you stopped.<br>
       Your work will be waiting when you're done.
     </p>
-
     <div class="retrieve-label">reason</div>
     <div class="retrieve-input-row">
       <span style="font-size:13px;color:rgba(255,80,80,0.5)">&gt;</span>
     </div>
     <textarea id="reason-input" placeholder="I stopped because..." rows="3"></textarea>
     <div class="retrieve-hint" id="retrieve-hint">0 / 5 words required</div>
-
     <button class="retrieve-btn locked" id="retrieve-submit" onclick="submitRetrieve()">
       retrieve my work
     </button>
@@ -592,28 +629,86 @@ body.freewrite .bottom-bar    { display: none; }
 
 <script>
 /* ═══════════════════════════════════════════════════════════
-   STATE
+   CONSTANTS & STATE
 ═══════════════════════════════════════════════════════════ */
-const DANGER_WINDOW = 5;
+const DANGER_WINDOW   = 5;
+const STORAGE_KEY     = 'dw_autosave';      // localStorage key for autosave text
+const AUTOSAVE_INTERVAL_MS = 10000;         // autosave every 10 seconds
 
 const state = {
   goalType: 'time', goalAmount: 5, theme: 'dark',
-  text: '', savedText: '',          // savedText = preserved on fail
+  text: '', savedText: '',
   countdown: DANGER_WINDOW, elapsed: 0,
-  sessionStart: null, countdownId: null, elapsedId: null, inDanger: false,
-  freeWrite: false,                 // true = no timer, no goal check
-  // redo overlay state
+  sessionStart: null, countdownId: null, elapsedId: null,
+  autosaveId: null, inDanger: false, freeWrite: false,
   redoGoalType: 'time', redoGoalAmount: 5,
 };
 
-/* ── Screen routing ── */
+/* ═══════════════════════════════════════════════════════════
+   SCREEN ROUTING
+═══════════════════════════════════════════════════════════ */
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
 
 /* ═══════════════════════════════════════════════════════════
-   SETUP — main setup screen
+   LOCALSTORAGE — AUTOSAVE & RECOVERY
+═══════════════════════════════════════════════════════════ */
+function autosave() {
+  if (state.text.trim().length === 0) return;
+  try {
+    localStorage.setItem(STORAGE_KEY, state.text);
+    flashAutosaveIndicator();
+  } catch(e) { /* storage full or unavailable — fail silently */ }
+}
+
+function clearAutosave() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+}
+
+function flashAutosaveIndicator() {
+  const el = document.getElementById('autosave-indicator');
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1500);
+}
+
+function startAutosave() {
+  clearInterval(state.autosaveId);
+  state.autosaveId = setInterval(autosave, AUTOSAVE_INTERVAL_MS);
+}
+
+function stopAutosave() {
+  clearInterval(state.autosaveId);
+}
+
+// On load — check for saved text and show recovery banner if found
+function checkForRecovery() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && saved.trim().length > 0) {
+      state.savedText = saved;
+      const preview = saved.trim().slice(0, 120) + (saved.length > 120 ? '…' : '');
+      document.getElementById('recovery-preview').textContent = preview;
+      document.getElementById('recovery-banner').classList.add('visible');
+    }
+  } catch(e) {}
+}
+
+function restoreFromStorage() {
+  // Load saved text directly into free-write mode
+  document.getElementById('recovery-banner').classList.remove('visible');
+  enterFreeWrite(true);
+}
+
+function dismissRecovery() {
+  clearAutosave();
+  state.savedText = '';
+  document.getElementById('recovery-banner').classList.remove('visible');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SETUP
 ═══════════════════════════════════════════════════════════ */
 const TIME_PRESETS = [5, 10, 20, 30, 60];
 const WORD_PRESETS = [100, 250, 500, 750, 1000];
@@ -662,7 +757,6 @@ renderPresets();
    REDO GOAL OVERLAY
 ═══════════════════════════════════════════════════════════ */
 function openRedoOverlay() {
-  // Sync redo panel to current state
   state.redoGoalType   = state.goalType;
   state.redoGoalAmount = state.goalAmount;
   document.getElementById('redo-goal-input').value = state.goalAmount;
@@ -712,27 +806,21 @@ function syncRedoTheme() {
 }
 
 function continueSession() {
-  // Apply new goal, reset progress, keep text, close overlay
-  state.goalType   = state.redoGoalType;
-  state.goalAmount = state.redoGoalAmount;
-  state.elapsed    = 0;
+  state.goalType     = state.redoGoalType;
+  state.goalAmount   = state.redoGoalAmount;
+  state.elapsed      = 0;
   state.sessionStart = Date.now();
-  state.countdown  = DANGER_WINDOW;
-  state.freeWrite  = false;
+  state.countdown    = DANGER_WINDOW;
+  state.freeWrite    = false;
   document.body.className = `theme-${state.theme}`;
-
   closeRedoOverlay();
-
-  // Reset danger state
   setDanger(false);
   updateStats();
   updateProgress();
   updateTimerBar(1);
-
-  // Restart timers
   startCountdown();
   startElapsed();
-
+  startAutosave();
   document.getElementById('editor').focus();
 }
 
@@ -757,39 +845,47 @@ function startSession() {
   updateStats(); updateProgress(); updateTimerBar(1);
   showScreen('writing');
   ed.focus();
-  startCountdown(); startElapsed();
+  startCountdown();
+  startElapsed();
+  startAutosave();
 }
 
 /* ═══════════════════════════════════════════════════════════
-   FREE WRITE MODE (no timer, no goal)
+   FREE WRITE MODE
 ═══════════════════════════════════════════════════════════ */
 function enterFreeWrite(preserveText) {
   clearInterval(state.countdownId);
   clearInterval(state.elapsedId);
+  stopAutosave();
 
-  state.freeWrite = true;
-  state.inDanger  = false;
-  state.elapsed   = 0;
+  state.freeWrite    = true;
+  state.inDanger     = false;
+  state.elapsed      = 0;
   state.sessionStart = Date.now();
 
   document.body.className = `theme-${state.theme} freewrite`;
 
   const ed = document.getElementById('editor');
+
+  // BUG FIX: ensure savedText is set correctly before writing to editor
   if (preserveText) {
-    ed.value   = state.savedText;
-    state.text = state.savedText;
+    const textToRestore = state.savedText || '';
+    ed.value   = textToRestore;
+    state.text = textToRestore;
+  } else {
+    ed.value   = '';
+    state.text = '';
   }
+
   ed.classList.remove('danger-text');
   document.getElementById('writing').classList.remove('danger-bg');
-
-  // Reset timer bar visually (even though it's hidden)
   updateTimerBar(1);
   updateStats();
-
   showScreen('writing');
+  // Move cursor to end of text
   ed.focus();
-
-  // Still track elapsed for stats display
+  ed.setSelectionRange(ed.value.length, ed.value.length);
+  // Start elapsed clock for stats display only
   startElapsed();
 }
 
@@ -805,7 +901,10 @@ function startCountdown() {
     updateTimerBar(ratio);
     if (ratio < 0.5) setDanger(true);
     if (state.countdown <= 0) {
-      clearInterval(state.countdownId); clearInterval(state.elapsedId); triggerFail();
+      clearInterval(state.countdownId);
+      clearInterval(state.elapsedId);
+      stopAutosave();
+      triggerFail();
     }
   }, 100);
 }
@@ -896,26 +995,31 @@ function checkGoalMet() {
 }
 
 function finishSession() {
-  clearInterval(state.countdownId); clearInterval(state.elapsedId);
+  clearInterval(state.countdownId);
+  clearInterval(state.elapsedId);
+  stopAutosave();
+  // On a clean finish, clear the autosave — the work is done
+  clearAutosave();
   const wc = wordCount(state.text);
   document.getElementById('done-words').textContent = wc.toLocaleString();
   document.getElementById('done-chars').textContent = state.text.length.toLocaleString();
   document.getElementById('done-time').textContent  = fmtElapsed(state.elapsed);
   document.getElementById('done-note').textContent  = '';
-  // Save text in case they want to keep writing from done screen
   state.savedText = state.text;
   showScreen('done');
 }
 
 function triggerFail() {
-  // Preserve text for potential retrieval
+  // Preserve text for retrieval — autosave already has a copy too
   state.savedText = state.text;
   state.text = '';
   showScreen('fail');
 }
 
 function goSetup() {
-  clearInterval(state.countdownId); clearInterval(state.elapsedId);
+  clearInterval(state.countdownId);
+  clearInterval(state.elapsedId);
+  stopAutosave();
   state.freeWrite = false;
   document.body.className = `theme-${state.theme}`;
   showScreen('setup');
@@ -923,7 +1027,7 @@ function goSetup() {
 
 /* ── Keep Writing (from Done screen) ── */
 function keepWriting() {
-  state.savedText = state.text;
+  // state.text is already current; savedText was set in finishSession
   enterFreeWrite(true);
 }
 
@@ -935,7 +1039,6 @@ function goRetrieve() {
   showScreen('retrieve');
 }
 
-// Live word count on reason textarea
 document.getElementById('reason-input').addEventListener('input', function() {
   const wc = wordCount(this.value);
   const enough = wc >= 5;
@@ -980,8 +1083,9 @@ document.getElementById('redo-overlay').addEventListener('click', function(e) {
   if (e.target === this) closeRedoOverlay();
 });
 
-/* ── Init redo presets on load ── */
+/* ── Init ── */
 renderRedoPresets();
+checkForRecovery();
 </script>
 </body>
 </html>
