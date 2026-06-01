@@ -381,26 +381,49 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
 /* ══════════════════════════════════════════════════════════
    DONE SCREEN
 ══════════════════════════════════════════════════════════ */
-.done-prompt { font-size: 10px; letter-spacing: 0.2em; color: var(--text-dim); margin-bottom: 20px; }
-.done-title {
-  font-size: clamp(32px,6vw,60px); font-weight: 700; line-height: 1.1;
-  letter-spacing: 0.06em; color: var(--timer-safe); text-align: center;
-  margin-bottom: 28px; text-shadow: var(--glow);
+/* ══════════════════════════════════════════════════════════
+   IN-EDITOR COMPLETION PANEL
+══════════════════════════════════════════════════════════ */
+#completion-panel {
+  display: none;
+  width: 100%; max-width: 700px;
+  margin: 0 auto;
+  padding: 40px 0 64px 0;
 }
-.done-stats { display: flex; gap: 36px; justify-content: center; margin-bottom: 32px; }
-.done-stat  { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.done-stat-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim); }
-.done-stat-value { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; }
-.done-actions { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
-.done-action-btn {
+#completion-panel.visible { display: block; }
+
+.cp-heading {
+  font-size: 18px; font-weight: 700;
+  color: var(--timer-safe); letter-spacing: 0.04em;
+  line-height: 1.9;
+}
+.cp-prompt {
+  font-size: 18px; color: var(--text-dim);
+  margin-top: 16px; line-height: 1.9;
+}
+.cp-actions {
+  display: flex; flex-direction: column; gap: 0;
+}
+.cp-action {
   background: none; border: none; padding: 0;
-  font-family: inherit; font-size: 13px; color: var(--text); cursor: pointer;
-  letter-spacing: 0.06em; text-decoration: underline; text-underline-offset: 4px;
-  transition: color 0.15s;
+  font-family: inherit; font-size: 18px;
+  color: var(--text); cursor: pointer;
+  letter-spacing: 0.04em; text-align: left;
+  text-decoration: none; transition: color 0.15s;
+  line-height: 1.9; width: fit-content;
 }
-.done-action-btn:hover   { color: var(--accent); }
-.done-action-btn.primary { color: var(--accent); }
-.done-note { margin-top: 20px; font-size: 11px; color: var(--timer-safe); letter-spacing: 0.06em; min-height: 18px; text-align: center; }
+.cp-action::before { content: '> '; color: var(--text-dim); }
+.cp-action:hover   { color: var(--accent); }
+.cp-warning {
+  margin-top: 20px; font-size: 12px;
+  color: var(--text-dim); letter-spacing: 0.04em;
+  line-height: 1.6;
+}
+.cp-note {
+  font-size: 12px; color: var(--timer-safe);
+  letter-spacing: 0.06em; min-height: 16px;
+  margin-top: 6px;
+}
 
 /* ── Animations ───────────────────────────────────────────── */
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
@@ -426,7 +449,7 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
       dangerous<span class="dim">_</span>writer<span class="blink">▊</span>
     </h1>
     <p class="setup-sub">stop typing for 5 seconds → everything is gone</p>
-    <p class="version-tag">Version 1.2.1</p>
+    <p class="version-tag">Version 1.3</p>
 
     <!-- Recovery banner — shown if unsaved text exists in localStorage -->
     <div id="recovery-banner">
@@ -505,6 +528,20 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
 
   <div id="editor-wrap">
     <textarea id="editor" spellcheck="true" autocorrect="on"></textarea>
+    <!-- Completion panel — appears in-line below text when goal is reached -->
+    <div id="completion-panel">
+      <div class="cp-heading" id="cp-heading">GOAL REACHED! 0 words, 0 chars, 0 minutes.</div>
+      <div class="cp-prompt">What would you like to do?</div>
+      <div class="cp-actions">
+        <button class="cp-action" onclick="cpKeepWriting()">Keep Writing</button>
+        <button class="cp-action" onclick="cpCopy()">Copy Text</button>
+        <button class="cp-action" onclick="cpShare()">Share</button>
+        <button class="cp-action" onclick="cpDownload()">Download</button>
+        <button class="cp-action" onclick="cpNewSession()">New Session</button>
+      </div>
+      <div class="cp-warning">Warning: Making your selection will lose all your work above.</div>
+      <div class="cp-note" id="cp-note"></div>
+    </div>
   </div>
 
   <div class="bottom-bar">
@@ -596,36 +633,6 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     DONE SCREEN
-═══════════════════════════════════════════ -->
-<div id="done" class="screen">
-  <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;width:100%;max-width:480px;">
-    <div class="done-prompt">$ session_complete — exit_code 0</div>
-    <div class="done-title">GOAL<br>REACHED.</div>
-    <div class="done-stats">
-      <div class="done-stat">
-        <span class="done-stat-label">words</span>
-        <span class="done-stat-value" id="done-words">0</span>
-      </div>
-      <div class="done-stat">
-        <span class="done-stat-label">chars</span>
-        <span class="done-stat-value" id="done-chars">0</span>
-      </div>
-      <div class="done-stat">
-        <span class="done-stat-label">time</span>
-        <span class="done-stat-value" id="done-time">0s</span>
-      </div>
-    </div>
-    <div class="done-actions">
-      <button class="done-action-btn" onclick="keepWriting()">keep writing</button>
-      <button class="done-action-btn" onclick="copyText()">copy text</button>
-      <button class="done-action-btn" onclick="downloadText()">download .txt</button>
-      <button class="done-action-btn primary" onclick="goSetup()">new session</button>
-    </div>
-    <div class="done-note" id="done-note"></div>
-  </div>
-</div>
 
 <script>
 /* ═══════════════════════════════════════════════════════════
@@ -757,6 +764,12 @@ renderPresets();
    REDO GOAL OVERLAY
 ═══════════════════════════════════════════════════════════ */
 function openRedoOverlay() {
+  // Pause the countdown while the overlay is open
+  clearInterval(state.countdownId);
+  clearInterval(state.elapsedId);
+  setDanger(false);
+  updateTimerBar(state.countdown / DANGER_WINDOW);
+
   state.redoGoalType   = state.goalType;
   state.redoGoalAmount = state.goalAmount;
   document.getElementById('redo-goal-input').value = state.goalAmount;
@@ -767,6 +780,14 @@ function openRedoOverlay() {
 
 function closeRedoOverlay() {
   document.getElementById('redo-overlay').classList.remove('active');
+  // Resume countdown and elapsed clock where they left off
+  if (!state.freeWrite) {
+    // Shift sessionStart forward by however long overlay was open
+    // so elapsed time doesn't jump
+    state.sessionStart = Date.now() - (state.elapsed * 1000);
+    startCountdown();
+    startElapsed();
+  }
 }
 
 function redoSetGoalType(type) {
@@ -998,15 +1019,32 @@ function finishSession() {
   clearInterval(state.countdownId);
   clearInterval(state.elapsedId);
   stopAutosave();
-  // On a clean finish, clear the autosave — the work is done
-  clearAutosave();
-  const wc = wordCount(state.text);
-  document.getElementById('done-words').textContent = wc.toLocaleString();
-  document.getElementById('done-chars').textContent = state.text.length.toLocaleString();
-  document.getElementById('done-time').textContent  = fmtElapsed(state.elapsed);
-  document.getElementById('done-note').textContent  = '';
+
+  // Keep text intact — user can still manually select & copy it above
   state.savedText = state.text;
-  showScreen('done');
+
+  // Build the heading line in RPG style
+  const wc      = wordCount(state.text);
+  const chars   = state.text.length;
+  const minutes = Math.round(state.elapsed / 60 * 10) / 10; // 1 decimal
+  const minStr  = minutes === 1 ? '1 minute' : `${minutes} minutes`;
+  document.getElementById('cp-heading').textContent =
+    `GOAL REACHED! ${wc.toLocaleString()} words, ${chars.toLocaleString()} chars, ${minStr}.`;
+  document.getElementById('cp-note').textContent = '';
+
+  // Show the panel and scroll it into view
+  const panel = document.getElementById('completion-panel');
+  panel.classList.add('visible');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Disable the editor so text is preserved but not editable until they choose
+  const ed = document.getElementById('editor');
+  ed.readOnly = true;
+  ed.style.opacity = '0.5';
+
+  // Freeze the top bar — hide redo goal, change finish to greyed out
+  document.getElementById('autosave-indicator').style.display = 'none';
+  document.querySelector('.top-btn:not(.primary)').style.display = 'none'; // hide redo goal
 }
 
 function triggerFail() {
@@ -1020,15 +1058,70 @@ function goSetup() {
   clearInterval(state.countdownId);
   clearInterval(state.elapsedId);
   stopAutosave();
+  clearAutosave();  // clean slate when starting fresh
   state.freeWrite = false;
   document.body.className = `theme-${state.theme}`;
   showScreen('setup');
 }
 
-/* ── Keep Writing (from Done screen) ── */
-function keepWriting() {
-  // state.text is already current; savedText was set in finishSession
+/* ═══════════════════════════════════════════════════════════
+   COMPLETION PANEL ACTIONS
+   Text is still visible above — user can manually copy anytime.
+   Only navigation actions (keep writing / new session) clear it.
+═══════════════════════════════════════════════════════════ */
+
+function resetEditor() {
+  // Re-enable editor and restore top bar for next session
+  const ed = document.getElementById('editor');
+  ed.readOnly = false;
+  ed.style.opacity = '';
+  document.getElementById('completion-panel').classList.remove('visible');
+  document.getElementById('autosave-indicator').style.display = '';
+  document.querySelector('.top-btn:not(.primary)').style.display = ''; // restore redo goal
+}
+
+function cpKeepWriting() {
+  // Dismiss panel, re-enable editor, enter free-write mode
+  resetEditor();
+  state.savedText = state.text;
   enterFreeWrite(true);
+}
+
+function cpCopy() {
+  navigator.clipboard.writeText(state.text).then(() => {
+    const n = document.getElementById('cp-note');
+    n.textContent = '✓ copied to clipboard — safe to make your selection now.';
+    setTimeout(() => n.textContent = '', 3500);
+  });
+}
+
+async function cpShare() {
+  const wc    = wordCount(state.text);
+  const title = `My writing session — ${wc} words`;
+  if (navigator.share) {
+    try { await navigator.share({ title, text: state.text }); } catch(e) {}
+  } else {
+    await navigator.clipboard.writeText(state.text);
+    const n = document.getElementById('cp-note');
+    n.textContent = '✓ share unavailable on desktop — copied to clipboard instead.';
+    setTimeout(() => n.textContent = '', 3500);
+  }
+}
+
+function cpDownload() {
+  const ts   = new Date().toISOString().slice(0,19).replace(/[:.]/g,'-');
+  const blob = new Blob([state.text], { type:'text/plain;charset=utf-8' });
+  const a    = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `dangerous-writer-${ts}.txt`;
+  a.click(); URL.revokeObjectURL(a.href);
+  const n = document.getElementById('cp-note');
+  n.textContent = '✓ downloaded — safe to make your selection now.';
+  setTimeout(() => n.textContent = '', 3500);
+}
+
+function cpNewSession() {
+  resetEditor();
+  goSetup();
 }
 
 /* ── Fail → Retrieve flow ── */
@@ -1056,35 +1149,65 @@ function submitRetrieve() {
   enterFreeWrite(true);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   DONE ACTIONS
-═══════════════════════════════════════════════════════════ */
-function copyText() {
-  navigator.clipboard.writeText(state.text).then(() => {
-    const n = document.getElementById('done-note');
-    n.textContent = '✓ copied to clipboard';
-    setTimeout(() => n.textContent = '', 2500);
-  });
-}
-
-function downloadText() {
-  const ts   = new Date().toISOString().slice(0,19).replace(/[:.]/g,'-');
-  const blob = new Blob([state.text], { type:'text/plain;charset=utf-8' });
-  const a    = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `dangerous-writer-${ts}.txt`;
-  a.click(); URL.revokeObjectURL(a.href);
-  const n = document.getElementById('done-note');
-  n.textContent = '✓ downloaded as .txt';
-  setTimeout(() => n.textContent = '', 2500);
-}
-
 /* ── Close redo overlay on backdrop click ── */
 document.getElementById('redo-overlay').addEventListener('click', function(e) {
   if (e.target === this) closeRedoOverlay();
 });
 
+/* ═══════════════════════════════════════════════════════════
+   URL PARAMETER DEFAULTS
+   Supported params:
+     ?time=10          → time goal of 10 minutes
+     ?wordcount=500    → word count goal of 500
+     ?skin=amber       → theme (dark | light | amber)
+     ?autostart=true   → skip setup and begin session immediately
+
+   Examples:
+     ?time=20&skin=light
+     ?wordcount=750&skin=amber&autostart=true
+
+   Notes:
+   - ?time and ?wordcount are mutually exclusive; if both are
+     present, wordcount takes priority.
+   - Values are validated; invalid values are silently ignored.
+═══════════════════════════════════════════════════════════ */
+function applyURLParams() {
+  const params = new URLSearchParams(window.location.search);
+
+  // ── skin ──────────────────────────────────────────────────
+  const skin = (params.get('skin') || '').toLowerCase();
+  if (['dark', 'light', 'amber'].includes(skin)) {
+    setTheme(skin);
+  }
+
+  // ── wordcount (takes priority over time if both present) ──
+  const wc = parseInt(params.get('wordcount'), 10);
+  if (!isNaN(wc) && wc > 0) {
+    setGoalType('words');
+    state.goalAmount = wc;
+    document.getElementById('goal-input').value = wc;
+    renderPresets();
+  } else {
+    // ── time ────────────────────────────────────────────────
+    const t = parseInt(params.get('time'), 10);
+    if (!isNaN(t) && t > 0) {
+      setGoalType('time');
+      state.goalAmount = t;
+      document.getElementById('goal-input').value = t;
+      renderPresets();
+    }
+  }
+
+  // ── autostart ─────────────────────────────────────────────
+  if (params.get('autostart') === 'true') {
+    // Small delay so the page paints before jumping into session
+    setTimeout(startSession, 80);
+  }
+}
+
 /* ── Init ── */
 renderRedoPresets();
+applyURLParams();
 checkForRecovery();
 </script>
 </body>
