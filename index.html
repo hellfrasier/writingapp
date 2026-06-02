@@ -6,12 +6,13 @@
 <title>Dangerous Writer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,300&display=swap" rel="stylesheet">
+<!-- Times New Roman and Helvetica/Arial are system fonts — no import needed -->
 <style>
 /* ── Reset & Base ─────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
 body {
-  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-family: var(--editor-font, 'JetBrains Mono', 'Courier New', monospace);
   transition: background 0.3s, color 0.3s;
 }
 
@@ -59,7 +60,22 @@ body.theme-amber {
   --glow:         0 0 16px rgba(255,176,0,0.10);
 }
 
-/* ── Screens ──────────────────────────────────────────────── */
+body.theme-minimalist {
+  --bg:           #ffffff;
+  --surface:      #f0f0f0;
+  --border:       #d0d0d0;
+  --text:         #000000;
+  --text-dim:     #888888;
+  --text-danger:  #cc0000;
+  --accent:       #0047cc;
+  --accent-bg:    #ffffff;
+  --timer-safe:   #0055bb;
+  --timer-warn:   #0088cc;
+  --timer-danger: #cc0000;
+  --glow:         none;
+}
+
+
 .screen {
   display: none; height: 100vh;
   background: var(--bg); color: var(--text);
@@ -169,6 +185,12 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
 }
 .t-preset:hover { color: var(--text); }
 .t-preset.active { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
+
+.t-sublabel {
+  font-size: 11px; color: var(--text-dim);
+  letter-spacing: 0.06em; margin-top: 6px;
+  font-style: italic;
+}
 
 .t-start {
   background: none; border: none; padding: 0;
@@ -449,7 +471,7 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
       dangerous<span class="dim">_</span>writer<span class="blink">▊</span>
     </h1>
     <p class="setup-sub">stop typing for 5 seconds → everything is gone</p>
-    <p class="version-tag">Version 1.3.1</p>
+    <p class="version-tag">Version 1.4</p>
 
     <!-- Recovery banner — shown if unsaved text exists in localStorage -->
     <div id="recovery-banner">
@@ -459,6 +481,16 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
         <button class="recovery-btn restore" onclick="restoreFromStorage()">restore text</button>
         <button class="recovery-btn dismiss" onclick="dismissRecovery()">discard</button>
       </div>
+    </div>
+
+    <!-- Mode -->
+    <div class="t-section">
+      <div class="t-label">mode</div>
+      <div class="t-options t-options-inline">
+        <button class="t-opt active" id="btn-easy" onclick="setMode('easy')">Easy</button>
+        <button class="t-opt"        id="btn-hard" onclick="setMode('hard')">Hard</button>
+      </div>
+      <div class="t-sublabel" id="mode-desc">backspace and cursor movement allowed</div>
     </div>
 
     <div class="t-section">
@@ -479,12 +511,23 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
       <div class="t-presets" id="presets-wrap"></div>
     </div>
 
+    <!-- Font -->
+    <div class="t-section">
+      <div class="t-label">font</div>
+      <div class="t-options t-options-inline">
+        <button class="t-opt active" data-font="mono"  onclick="setFont('mono')">Default</button>
+        <button class="t-opt"        data-font="serif" onclick="setFont('serif')">Times New Roman</button>
+        <button class="t-opt"        data-font="sans"  onclick="setFont('sans')">Helvetica</button>
+      </div>
+    </div>
+
     <div class="t-section" id="theme-section">
       <div class="t-label">theme</div>
       <div class="t-options t-options-inline">
-        <button class="t-opt active" data-theme="dark"  onclick="setTheme('dark')">Dark</button>
-        <button class="t-opt"        data-theme="light" onclick="setTheme('light')">Light</button>
-        <button class="t-opt"        data-theme="amber" onclick="setTheme('amber')">Amber</button>
+        <button class="t-opt active"    data-theme="dark"       onclick="setTheme('dark')">Dark</button>
+        <button class="t-opt"           data-theme="light"      onclick="setTheme('light')">Light</button>
+        <button class="t-opt"           data-theme="amber"      onclick="setTheme('amber')">Amber</button>
+        <button class="t-opt"           data-theme="minimalist" onclick="setTheme('minimalist')">Minimalist</button>
       </div>
     </div>
 
@@ -585,9 +628,10 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
     <div class="t-section" id="redo-theme-section">
       <div class="t-label">theme</div>
       <div class="t-options t-options-inline">
-        <button class="t-opt active" data-theme="dark"  onclick="setTheme('dark');syncRedoTheme()">Dark</button>
-        <button class="t-opt"        data-theme="light" onclick="setTheme('light');syncRedoTheme()">Light</button>
-        <button class="t-opt"        data-theme="amber" onclick="setTheme('amber');syncRedoTheme()">Amber</button>
+        <button class="t-opt active" data-theme="dark"       onclick="setTheme('dark');syncRedoTheme()">Dark</button>
+        <button class="t-opt"        data-theme="light"      onclick="setTheme('light');syncRedoTheme()">Light</button>
+        <button class="t-opt"        data-theme="amber"      onclick="setTheme('amber');syncRedoTheme()">Amber</button>
+        <button class="t-opt"        data-theme="minimalist" onclick="setTheme('minimalist');syncRedoTheme()">Minimalist</button>
       </div>
     </div>
 
@@ -644,6 +688,8 @@ const AUTOSAVE_INTERVAL_MS = 10000;         // autosave every 10 seconds
 
 const state = {
   goalType: 'time', goalAmount: 5, theme: 'dark',
+  mode: 'easy',   // 'easy' | 'hard'
+  font: 'mono',   // 'mono' | 'serif' | 'sans'
   text: '', savedText: '',
   countdown: DANGER_WINDOW, elapsed: 0,
   sessionStart: null, countdownId: null, elapsedId: null,
@@ -753,9 +799,36 @@ document.getElementById('goal-input').addEventListener('input', function() {
 
 function setTheme(theme) {
   state.theme = theme;
-  document.body.className = `theme-${theme}${state.freeWrite ? ' freewrite' : ''}`;
+  applyBodyClass();
   document.querySelectorAll('#theme-section .t-opt').forEach(b =>
     b.classList.toggle('active', b.dataset.theme === theme));
+}
+
+function setMode(mode) {
+  state.mode = mode;
+  document.getElementById('btn-easy').classList.toggle('active', mode === 'easy');
+  document.getElementById('btn-hard').classList.toggle('active', mode === 'hard');
+  document.getElementById('mode-desc').textContent = mode === 'easy'
+    ? 'backspace and cursor movement allowed'
+    : 'no deleting, no cursor movement — keep typing';
+}
+
+const FONT_MAP = {
+  mono:  "'JetBrains Mono', 'Courier New', monospace",
+  serif: "'Times New Roman', Times, serif",
+  sans:  "Helvetica, Arial, sans-serif",
+};
+
+function setFont(font) {
+  state.font = font;
+  document.querySelectorAll('[data-font]').forEach(b =>
+    b.classList.toggle('active', b.dataset.font === font));
+  document.documentElement.style.setProperty('--editor-font', FONT_MAP[font]);
+}
+
+function applyBodyClass() {
+  const fw = state.freeWrite ? ' freewrite' : '';
+  document.body.className = `theme-${state.theme}${fw}`;
 }
 
 renderPresets();
@@ -833,7 +906,7 @@ function continueSession() {
   state.sessionStart = Date.now();
   state.countdown    = DANGER_WINDOW;
   state.freeWrite    = false;
-  document.body.className = `theme-${state.theme}`;
+  applyBodyClass();
   closeRedoOverlay();
   setDanger(false);
   updateStats();
@@ -857,11 +930,13 @@ function startSession() {
   state.inDanger     = false;
   state.sessionStart = Date.now();
 
-  document.body.className = `theme-${state.theme}`;
+  applyBodyClass();
 
   const ed = document.getElementById('editor');
   ed.value = ''; ed.classList.remove('danger-text');
+  ed.readOnly = false; ed.style.opacity = '';
   document.getElementById('writing').classList.remove('danger-bg');
+  document.getElementById('completion-panel').classList.remove('visible');
 
   updateStats(); updateProgress(); updateTimerBar(1);
   showScreen('writing');
@@ -884,7 +959,7 @@ function enterFreeWrite(preserveText) {
   state.elapsed      = 0;
   state.sessionStart = Date.now();
 
-  document.body.className = `theme-${state.theme} freewrite`;
+  applyBodyClass();
 
   const ed = document.getElementById('editor');
 
@@ -978,6 +1053,29 @@ document.getElementById('editor').addEventListener('input', function() {
   if (!state.freeWrite) { updateProgress(); resetCountdown(); checkGoalMet(); }
 });
 
+/* Hard mode — block backspace, delete, and all cursor movement keys */
+document.getElementById('editor').addEventListener('keydown', function(e) {
+  if (state.mode !== 'hard') return;
+
+  const blocked = [
+    'Backspace', 'Delete',
+    'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+    'Home', 'End', 'PageUp', 'PageDown',
+  ];
+
+  // Also block Ctrl/Cmd + A (select all), Ctrl/Cmd + Z (undo),
+  // Ctrl/Cmd + X (cut), and Ctrl/Cmd + Backspace (delete word)
+  const isModified = e.ctrlKey || e.metaKey;
+  if (isModified && ['a', 'z', 'x', 'Backspace'].includes(e.key)) {
+    e.preventDefault();
+    return;
+  }
+
+  if (blocked.includes(e.key)) {
+    e.preventDefault();
+  }
+});
+
 function wordCount(t) { return t.trim() === '' ? 0 : t.trim().split(/\s+/).length; }
 
 function updateStats() {
@@ -1058,9 +1156,9 @@ function goSetup() {
   clearInterval(state.countdownId);
   clearInterval(state.elapsedId);
   stopAutosave();
-  clearAutosave();  // clean slate when starting fresh
+  clearAutosave();
   state.freeWrite = false;
-  document.body.className = `theme-${state.theme}`;
+  applyBodyClass();
   showScreen('setup');
 }
 
@@ -1176,8 +1274,20 @@ function applyURLParams() {
 
   // ── skin ──────────────────────────────────────────────────
   const skin = (params.get('skin') || '').toLowerCase();
-  if (['dark', 'light', 'amber'].includes(skin)) {
+  if (['dark', 'light', 'amber', 'minimalist'].includes(skin)) {
     setTheme(skin);
+  }
+
+  // ── font ──────────────────────────────────────────────────
+  const font = (params.get('font') || '').toLowerCase();
+  if (['mono', 'serif', 'sans'].includes(font)) {
+    setFont(font);
+  }
+
+  // ── mode ──────────────────────────────────────────────────
+  const mode = (params.get('mode') || '').toLowerCase();
+  if (['easy', 'hard'].includes(mode)) {
+    setMode(mode);
   }
 
   // ── wordcount (takes priority over time if both present) ──
