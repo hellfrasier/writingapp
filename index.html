@@ -138,8 +138,13 @@ body.theme-minimalist {
   text-decoration: underline; text-underline-offset: 4px;
 }
 .recovery-btn.restore { color: var(--accent); }
+.recovery-btn.copy    { color: var(--accent); }
 .recovery-btn.dismiss { color: var(--text-dim); }
 .recovery-btn:hover   { opacity: 0.7; }
+.recovery-copy-note {
+  font-size: 10px; color: var(--timer-safe);
+  letter-spacing: 0.08em; min-height: 14px; margin-top: 4px;
+}
 
 .t-section { margin-bottom: 28px; }
 .t-label {
@@ -255,32 +260,30 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
   position: relative; z-index: 1;
 }
 
-/* Typewriter scroll container — clips and scrolls programmatically */
+/* Typewriter scroll container — native overflow-y scroll, no transform tricks */
 #editor-scroll {
-  width: 100%; flex: 1;
-  overflow: hidden;          /* no native scrollbar — we scroll via JS */
+  width: 100%; height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* smooth momentum on iOS */
   position: relative;
 }
 
-/* Inner stage — translates up as user types to keep cursor at center */
+/* Inner stage — centered column, padded so cursor starts at mid-screen */
 #editor-stage {
   width: 100%; max-width: 700px;
   margin: 0 auto;
   padding: 0 20px;
-  position: relative;
-  will-change: transform;
-  transition: transform 0.12s ease-out;
 }
 
-/* The actual editable area */
 #editor {
   width: 100%;
   background: transparent; border: none; outline: none;
   resize: none; font-family: inherit; font-size: 18px; line-height: 1.9;
   color: var(--text); caret-color: var(--accent); transition: color 0.2s;
-  overflow: hidden;          /* stage handles scrolling */
-  white-space: pre-wrap;     /* preserve line breaks */
+  overflow: hidden;
+  white-space: pre-wrap;
   word-break: break-word;
+  display: block;
 }
 #editor.danger-text { color: var(--text-danger); }
 
@@ -495,7 +498,7 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
       dangerous<span class="dim">_</span>writer<span class="blink">▊</span>
     </h1>
     <p class="setup-sub">stop typing for 5 seconds → everything is gone</p>
-    <p class="version-tag">Version 1.4.1</p>
+    <p class="version-tag">Version 1.4.2</p>
 
     <!-- Recovery banner — shown if unsaved text exists in localStorage -->
     <div id="recovery-banner">
@@ -503,8 +506,10 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
       <div class="recovery-preview" id="recovery-preview"></div>
       <div class="recovery-actions">
         <button class="recovery-btn restore" onclick="restoreFromStorage()">restore text</button>
+        <button class="recovery-btn copy"    onclick="copyRecoveredText()">copy to clipboard</button>
         <button class="recovery-btn dismiss" onclick="dismissRecovery()">discard</button>
       </div>
+      <div class="recovery-copy-note" id="recovery-copy-note"></div>
     </div>
 
     <!-- Mode -->
@@ -777,9 +782,22 @@ function checkForRecovery() {
 }
 
 function restoreFromStorage() {
-  // Load saved text directly into free-write mode
   document.getElementById('recovery-banner').classList.remove('visible');
   enterFreeWrite(true);
+}
+
+function copyRecoveredText() {
+  const text = state.savedText || '';
+  if (!text.trim()) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const note = document.getElementById('recovery-copy-note');
+    note.textContent = '✓ copied — your work is safe in your clipboard.';
+    setTimeout(() => note.textContent = '', 4000);
+  }).catch(() => {
+    // Fallback for browsers that block clipboard without interaction
+    const note = document.getElementById('recovery-copy-note');
+    note.textContent = 'Could not copy automatically — try selecting the preview text manually.';
+  });
 }
 
 function dismissRecovery() {
@@ -1086,38 +1104,21 @@ function fmtElapsed(s) {
 ═══════════════════════════════════════════════════════════ */
 /* ═══════════════════════════════════════════════════════════
    TYPEWRITER MODE — keeps current line at vertical center
+   Uses native scrollTop on #editor-scroll (stable on iOS Safari).
+   The stage gets top/bottom padding so the first and last lines
+   can reach the center. We scroll programmatically on every input.
 ═══════════════════════════════════════════════════════════ */
-function getTypewriterOffset() {
-  const ed        = document.getElementById('editor');
-  const scroll    = document.getElementById('editor-scroll');
-  const stage     = document.getElementById('editor-stage');
-
-  // Height of the visible scroll window
-  const viewH     = scroll.getBoundingClientRect().height;
-
-  // We want the cursor line at viewH / 2.
-  // Measure the caret position within the textarea using a mirror technique.
-  const caretTop  = getCaretTopOffset(ed);
-  const lineH     = parseFloat(getComputedStyle(ed).lineHeight) || 34;
-
-  // Target: caret sits at vertical center of scroll container
-  // translateY moves the stage UP (negative) to push caret to center
-  const centerY   = viewH / 2 - lineH / 2;
-  const offsetY   = centerY - caretTop;
-
-  // Never push stage below its natural top (don't over-scroll at start)
-  return Math.min(0, offsetY);
-}
 
 function getCaretTopOffset(textarea) {
-  // Create an invisible mirror div that matches the textarea's layout
+  // Mirror the textarea content up to the caret to find its Y offset
   const mirror = document.createElement('div');
   const cs     = getComputedStyle(textarea);
 
-  // Copy all relevant styles
-  ['fontFamily','fontSize','fontWeight','lineHeight','letterSpacing',
-   'wordSpacing','padding','border','boxSizing','width','whiteSpace',
-   'wordWrap','wordBreak'].forEach(p => {
+  ['fontFamily','fontSize','fontWeight','fontStyle','lineHeight',
+   'letterSpacing','wordSpacing','paddingTop','paddingBottom',
+   'paddingLeft','paddingRight','borderTopWidth','borderBottomWidth',
+   'borderLeftWidth','borderRightWidth','boxSizing','width',
+   'whiteSpace','wordBreak','wordWrap'].forEach(p => {
     mirror.style[p] = cs[p];
   });
 
@@ -1129,42 +1130,55 @@ function getCaretTopOffset(textarea) {
   mirror.style.height     = 'auto';
   mirror.style.whiteSpace = 'pre-wrap';
 
-  // Text before caret
-  const text   = textarea.value.substring(0, textarea.selectionStart);
-  mirror.textContent = text;
+  const before = document.createTextNode(
+    textarea.value.substring(0, textarea.selectionStart)
+  );
+  mirror.appendChild(before);
 
-  // Span at caret position
-  const caret = document.createElement('span');
-  caret.textContent = '|';
-  mirror.appendChild(caret);
+  const caretSpan = document.createElement('span');
+  caretSpan.textContent = '\u200b'; // zero-width space
+  mirror.appendChild(caretSpan);
 
   document.body.appendChild(mirror);
-  const caretTop = caret.offsetTop;
+  const caretTop = caretSpan.offsetTop;
   document.body.removeChild(mirror);
 
   return caretTop;
 }
 
 function applyTypewriterScroll() {
-  const offset = getTypewriterOffset();
-  document.getElementById('editor-stage').style.transform =
-    `translateY(${offset}px)`;
+  const ed     = document.getElementById('editor');
+  const scroll = document.getElementById('editor-scroll');
+  const viewH  = scroll.clientHeight;
+  const lineH  = parseFloat(getComputedStyle(ed).lineHeight) || 34;
+
+  // caretTop is relative to the top of the textarea content
+  // Add the stage's paddingTop (which equals viewH/2) to get
+  // the offset from the top of the scrollable content
+  const paddingTop = viewH / 2;
+  const caretTop   = getCaretTopOffset(ed);
+  const absoluteCaretTop = paddingTop + caretTop;
+
+  // We want the caret line centered: scrollTop = caretTop - viewH/2 + lineH/2
+  const targetScroll = absoluteCaretTop - viewH / 2 + lineH / 2;
+
+  // Smooth scroll — use scrollTo with behavior for iOS momentum feel
+  scroll.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
 }
 
 function initTypewriter() {
   const ed     = document.getElementById('editor');
   const scroll = document.getElementById('editor-scroll');
-
-  // Set initial top padding so empty editor starts with cursor at center
-  const viewH  = scroll.getBoundingClientRect().height;
+  const viewH  = scroll.clientHeight;
   const lineH  = parseFloat(getComputedStyle(ed).lineHeight) || 34;
-  const initPad = Math.max(0, viewH / 2 - lineH / 2);
 
-  ed.style.paddingTop    = `${initPad}px`;
-  ed.style.paddingBottom = `${viewH / 2}px`; // breathing room at end
+  // Top padding = half viewport so first line starts at center
+  // Bottom padding = half viewport so last line can scroll to center
+  ed.style.paddingTop    = `${viewH / 2 - lineH / 2}px`;
+  ed.style.paddingBottom = `${viewH / 2}px`;
 
-  // Snap to center immediately (empty state)
-  applyTypewriterScroll();
+  // Reset scroll to top (cursor is at start)
+  scroll.scrollTop = 0;
 }
 
 document.getElementById('editor').addEventListener('input', function() {
@@ -1174,7 +1188,7 @@ document.getElementById('editor').addEventListener('input', function() {
   if (!state.freeWrite) { updateProgress(); resetCountdown(); checkGoalMet(); }
 });
 
-// Also reposition on cursor movement (click, keyboard nav in easy mode)
+// Reposition on cursor movement (easy mode arrow keys, clicks)
 document.getElementById('editor').addEventListener('keyup', function(e) {
   const navKeys = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Enter'];
   if (navKeys.includes(e.key)) applyTypewriterScroll();
@@ -1182,7 +1196,6 @@ document.getElementById('editor').addEventListener('keyup', function(e) {
 
 document.getElementById('editor').addEventListener('click', applyTypewriterScroll);
 
-// Recompute on window resize
 window.addEventListener('resize', () => {
   initTypewriter();
   applyTypewriterScroll();
