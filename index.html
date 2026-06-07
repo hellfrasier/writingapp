@@ -250,17 +250,41 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
 #autosave-indicator.show { opacity: 1; }
 
 #editor-wrap {
-  flex: 1; overflow-y: auto;
+  flex: 1; overflow: hidden;
   display: flex; flex-direction: column; align-items: center;
-  padding: 64px 20px; position: relative; z-index: 1;
+  position: relative; z-index: 1;
 }
+
+/* Typewriter scroll container — clips and scrolls programmatically */
+#editor-scroll {
+  width: 100%; flex: 1;
+  overflow: hidden;          /* no native scrollbar — we scroll via JS */
+  position: relative;
+}
+
+/* Inner stage — translates up as user types to keep cursor at center */
+#editor-stage {
+  width: 100%; max-width: 700px;
+  margin: 0 auto;
+  padding: 0 20px;
+  position: relative;
+  will-change: transform;
+  transition: transform 0.12s ease-out;
+}
+
+/* The actual editable area */
 #editor {
-  width: 100%; max-width: 700px; min-height: 100%;
+  width: 100%;
   background: transparent; border: none; outline: none;
   resize: none; font-family: inherit; font-size: 18px; line-height: 1.9;
   color: var(--text); caret-color: var(--accent); transition: color 0.2s;
+  overflow: hidden;          /* stage handles scrolling */
+  white-space: pre-wrap;     /* preserve line breaks */
+  word-break: break-word;
 }
 #editor.danger-text { color: var(--text-danger); }
+
+/* Completion panel sits inside editor-stage, below the textarea */
 
 .bottom-bar {
   display: flex; align-items: center; gap: 10px;
@@ -471,7 +495,7 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
       dangerous<span class="dim">_</span>writer<span class="blink">▊</span>
     </h1>
     <p class="setup-sub">stop typing for 5 seconds → everything is gone</p>
-    <p class="version-tag">Version 1.4</p>
+    <p class="version-tag">Version 1.4.1</p>
 
     <!-- Recovery banner — shown if unsaved text exists in localStorage -->
     <div id="recovery-banner">
@@ -570,20 +594,24 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
   </div>
 
   <div id="editor-wrap">
-    <textarea id="editor" spellcheck="true" autocorrect="on"></textarea>
-    <!-- Completion panel — appears in-line below text when goal is reached -->
-    <div id="completion-panel">
-      <div class="cp-heading" id="cp-heading">GOAL REACHED! 0 words, 0 chars, 0 minutes.</div>
-      <div class="cp-prompt">What would you like to do?</div>
-      <div class="cp-actions">
-        <button class="cp-action" onclick="cpKeepWriting()">Keep Writing</button>
-        <button class="cp-action" onclick="cpCopy()">Copy Text</button>
-        <button class="cp-action" onclick="cpShare()">Share</button>
-        <button class="cp-action" onclick="cpDownload()">Download</button>
-        <button class="cp-action" onclick="cpNewSession()">New Session</button>
+    <div id="editor-scroll">
+      <div id="editor-stage">
+        <textarea id="editor" spellcheck="true" autocorrect="on"></textarea>
+        <!-- Completion panel — appears in-line below text when goal is reached -->
+        <div id="completion-panel">
+          <div class="cp-heading" id="cp-heading">GOAL REACHED! 0 words, 0 chars, 0 minutes.</div>
+          <div class="cp-prompt">What would you like to do?</div>
+          <div class="cp-actions">
+            <button class="cp-action" onclick="cpKeepWriting()">Keep Writing</button>
+            <button class="cp-action" onclick="cpCopy()">Copy Text</button>
+            <button class="cp-action" onclick="cpShare()">Share</button>
+            <button class="cp-action" onclick="cpDownload()">Download</button>
+            <button class="cp-action" onclick="cpNewSession()">New Session</button>
+          </div>
+          <div class="cp-warning">Warning: Making your selection will lose all your work above.</div>
+          <div class="cp-note" id="cp-note"></div>
+        </div>
       </div>
-      <div class="cp-warning">Warning: Making your selection will lose all your work above.</div>
-      <div class="cp-note" id="cp-note"></div>
     </div>
   </div>
 
@@ -941,6 +969,11 @@ function startSession() {
   updateStats(); updateProgress(); updateTimerBar(1);
   showScreen('writing');
   ed.focus();
+  // Small rAF delay so the screen is painted before we measure heights
+  requestAnimationFrame(() => {
+    initTypewriter();
+    applyTypewriterScroll();
+  });
   startCountdown();
   startElapsed();
   startAutosave();
@@ -981,6 +1014,10 @@ function enterFreeWrite(preserveText) {
   // Move cursor to end of text
   ed.focus();
   ed.setSelectionRange(ed.value.length, ed.value.length);
+  requestAnimationFrame(() => {
+    initTypewriter();
+    applyTypewriterScroll();
+  });
   // Start elapsed clock for stats display only
   startElapsed();
 }
@@ -1047,10 +1084,108 @@ function fmtElapsed(s) {
 /* ═══════════════════════════════════════════════════════════
    EDITOR
 ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   TYPEWRITER MODE — keeps current line at vertical center
+═══════════════════════════════════════════════════════════ */
+function getTypewriterOffset() {
+  const ed        = document.getElementById('editor');
+  const scroll    = document.getElementById('editor-scroll');
+  const stage     = document.getElementById('editor-stage');
+
+  // Height of the visible scroll window
+  const viewH     = scroll.getBoundingClientRect().height;
+
+  // We want the cursor line at viewH / 2.
+  // Measure the caret position within the textarea using a mirror technique.
+  const caretTop  = getCaretTopOffset(ed);
+  const lineH     = parseFloat(getComputedStyle(ed).lineHeight) || 34;
+
+  // Target: caret sits at vertical center of scroll container
+  // translateY moves the stage UP (negative) to push caret to center
+  const centerY   = viewH / 2 - lineH / 2;
+  const offsetY   = centerY - caretTop;
+
+  // Never push stage below its natural top (don't over-scroll at start)
+  return Math.min(0, offsetY);
+}
+
+function getCaretTopOffset(textarea) {
+  // Create an invisible mirror div that matches the textarea's layout
+  const mirror = document.createElement('div');
+  const cs     = getComputedStyle(textarea);
+
+  // Copy all relevant styles
+  ['fontFamily','fontSize','fontWeight','lineHeight','letterSpacing',
+   'wordSpacing','padding','border','boxSizing','width','whiteSpace',
+   'wordWrap','wordBreak'].forEach(p => {
+    mirror.style[p] = cs[p];
+  });
+
+  mirror.style.position   = 'absolute';
+  mirror.style.top        = '-9999px';
+  mirror.style.left       = '-9999px';
+  mirror.style.visibility = 'hidden';
+  mirror.style.overflow   = 'hidden';
+  mirror.style.height     = 'auto';
+  mirror.style.whiteSpace = 'pre-wrap';
+
+  // Text before caret
+  const text   = textarea.value.substring(0, textarea.selectionStart);
+  mirror.textContent = text;
+
+  // Span at caret position
+  const caret = document.createElement('span');
+  caret.textContent = '|';
+  mirror.appendChild(caret);
+
+  document.body.appendChild(mirror);
+  const caretTop = caret.offsetTop;
+  document.body.removeChild(mirror);
+
+  return caretTop;
+}
+
+function applyTypewriterScroll() {
+  const offset = getTypewriterOffset();
+  document.getElementById('editor-stage').style.transform =
+    `translateY(${offset}px)`;
+}
+
+function initTypewriter() {
+  const ed     = document.getElementById('editor');
+  const scroll = document.getElementById('editor-scroll');
+
+  // Set initial top padding so empty editor starts with cursor at center
+  const viewH  = scroll.getBoundingClientRect().height;
+  const lineH  = parseFloat(getComputedStyle(ed).lineHeight) || 34;
+  const initPad = Math.max(0, viewH / 2 - lineH / 2);
+
+  ed.style.paddingTop    = `${initPad}px`;
+  ed.style.paddingBottom = `${viewH / 2}px`; // breathing room at end
+
+  // Snap to center immediately (empty state)
+  applyTypewriterScroll();
+}
+
 document.getElementById('editor').addEventListener('input', function() {
   state.text = this.value;
   updateStats();
+  applyTypewriterScroll();
   if (!state.freeWrite) { updateProgress(); resetCountdown(); checkGoalMet(); }
+});
+
+// Also reposition on cursor movement (click, keyboard nav in easy mode)
+document.getElementById('editor').addEventListener('keyup', function(e) {
+  const navKeys = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Enter'];
+  if (navKeys.includes(e.key)) applyTypewriterScroll();
+});
+
+document.getElementById('editor').addEventListener('click', applyTypewriterScroll);
+
+// Recompute on window resize
+window.addEventListener('resize', () => {
+  initTypewriter();
+  applyTypewriterScroll();
 });
 
 /* Hard mode — block backspace, delete, and all cursor movement keys */
