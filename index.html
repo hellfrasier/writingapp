@@ -277,13 +277,13 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
 
 #editor {
   width: 100%;
+  min-height: 2em;
   background: transparent; border: none; outline: none;
-  resize: none; font-family: inherit; font-size: 18px; line-height: 1.9;
+  font-family: inherit; font-size: 18px; line-height: 1.9;
   color: var(--text); caret-color: var(--accent); transition: color 0.2s;
-  overflow: hidden;
   white-space: pre-wrap;
   word-break: break-word;
-  display: block;
+  cursor: text;
 }
 #editor.danger-text { color: var(--text-danger); }
 
@@ -498,7 +498,7 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
       dangerous<span class="dim">_</span>writer<span class="blink">▊</span>
     </h1>
     <p class="setup-sub">stop typing for 5 seconds → everything is gone</p>
-    <p class="version-tag">Version 1.4.2</p>
+    <p class="version-tag">Version 1.4.4</p>
 
     <!-- Recovery banner — shown if unsaved text exists in localStorage -->
     <div id="recovery-banner">
@@ -593,6 +593,7 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
 
     <div class="top-actions">
       <span id="autosave-indicator">saved</span>
+      <button class="top-btn" id="scroll-mode-btn" onclick="toggleScrollMode()">typewriter</button>
       <button class="top-btn" onclick="openRedoOverlay()">redo goal</button>
       <button class="top-btn primary" onclick="finishSession()">finish</button>
     </div>
@@ -601,7 +602,7 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
   <div id="editor-wrap">
     <div id="editor-scroll">
       <div id="editor-stage">
-        <textarea id="editor" spellcheck="true" autocorrect="on"></textarea>
+        <div id="editor" contenteditable="true" spellcheck="true" autocorrect="on" autocapitalize="sentences"></div>
         <!-- Completion panel — appears in-line below text when goal is reached -->
         <div id="completion-panel">
           <div class="cp-heading" id="cp-heading">GOAL REACHED! 0 words, 0 chars, 0 minutes.</div>
@@ -721,8 +722,9 @@ const AUTOSAVE_INTERVAL_MS = 10000;         // autosave every 10 seconds
 
 const state = {
   goalType: 'time', goalAmount: 5, theme: 'dark',
-  mode: 'easy',   // 'easy' | 'hard'
-  font: 'mono',   // 'mono' | 'serif' | 'sans'
+  mode: 'easy',       // 'easy' | 'hard'
+  font: 'mono',       // 'mono' | 'serif' | 'sans'
+  scrollMode: 'doc',  // 'doc' | 'typewriter'
   text: '', savedText: '',
   countdown: DANGER_WINDOW, elapsed: 0,
   sessionStart: null, countdownId: null, elapsedId: null,
@@ -979,19 +981,18 @@ function startSession() {
   applyBodyClass();
 
   const ed = document.getElementById('editor');
-  ed.value = ''; ed.classList.remove('danger-text');
-  ed.readOnly = false; ed.style.opacity = '';
+  setEditorText('');
+  ed.classList.remove('danger-text');
+  ed.contentEditable = 'true';
+  ed.style.opacity = '';
   document.getElementById('writing').classList.remove('danger-bg');
   document.getElementById('completion-panel').classList.remove('visible');
 
   updateStats(); updateProgress(); updateTimerBar(1);
   showScreen('writing');
+  updateScrollModeBtn();
   ed.focus();
-  // Small rAF delay so the screen is painted before we measure heights
-  requestAnimationFrame(() => {
-    initTypewriter();
-    applyTypewriterScroll();
-  });
+  requestAnimationFrame(() => initScrollMode());
   startCountdown();
   startElapsed();
   startAutosave();
@@ -1014,29 +1015,25 @@ function enterFreeWrite(preserveText) {
 
   const ed = document.getElementById('editor');
 
-  // BUG FIX: ensure savedText is set correctly before writing to editor
   if (preserveText) {
     const textToRestore = state.savedText || '';
-    ed.value   = textToRestore;
+    setEditorText(textToRestore);
     state.text = textToRestore;
   } else {
-    ed.value   = '';
+    setEditorText('');
     state.text = '';
   }
 
+  ed.contentEditable = 'true';
   ed.classList.remove('danger-text');
   document.getElementById('writing').classList.remove('danger-bg');
   updateTimerBar(1);
   updateStats();
   showScreen('writing');
-  // Move cursor to end of text
+  updateScrollModeBtn();
   ed.focus();
-  ed.setSelectionRange(ed.value.length, ed.value.length);
-  requestAnimationFrame(() => {
-    initTypewriter();
-    applyTypewriterScroll();
-  });
-  // Start elapsed clock for stats display only
+  // Cursor already at end from setEditorText; trigger scroll
+  requestAnimationFrame(() => initScrollMode());
   startElapsed();
 }
 
@@ -1100,131 +1097,143 @@ function fmtElapsed(s) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   EDITOR
-═══════════════════════════════════════════════════════════ */
-/* ═══════════════════════════════════════════════════════════
-   TYPEWRITER MODE — keeps current line at vertical center
-   Uses native scrollTop on #editor-scroll (stable on iOS Safari).
-   The stage gets top/bottom padding so the first and last lines
-   can reach the center. We scroll programmatically on every input.
+   SCROLL MODE — doc (normal) or typewriter (caret at center)
+   Uses contenteditable + getBoundingClientRect on the live
+   selection — no mirrors, works correctly on all devices.
 ═══════════════════════════════════════════════════════════ */
 
-function getCaretTopOffset(textarea) {
-  // Mirror the textarea content up to the caret to find its Y offset
-  const mirror = document.createElement('div');
-  const cs     = getComputedStyle(textarea);
+function toggleScrollMode() {
+  state.scrollMode = state.scrollMode === 'doc' ? 'typewriter' : 'doc';
+  updateScrollModeBtn();
+  initScrollMode();
+}
 
-  ['fontFamily','fontSize','fontWeight','fontStyle','lineHeight',
-   'letterSpacing','wordSpacing','paddingTop','paddingBottom',
-   'paddingLeft','paddingRight','borderTopWidth','borderBottomWidth',
-   'borderLeftWidth','borderRightWidth','boxSizing','width',
-   'whiteSpace','wordBreak','wordWrap'].forEach(p => {
-    mirror.style[p] = cs[p];
-  });
+function updateScrollModeBtn() {
+  const btn = document.getElementById('scroll-mode-btn');
+  if (state.scrollMode === 'typewriter') {
+    btn.textContent               = 'doc mode';
+    btn.style.textDecoration      = 'underline';
+    btn.style.textUnderlineOffset = '4px';
+    btn.style.color               = 'var(--accent)';
+  } else {
+    btn.textContent          = 'typewriter';
+    btn.style.textDecoration = '';
+    btn.style.color          = '';
+  }
+}
 
-  mirror.style.position   = 'absolute';
-  mirror.style.top        = '-9999px';
-  mirror.style.left       = '-9999px';
-  mirror.style.visibility = 'hidden';
-  mirror.style.overflow   = 'hidden';
-  mirror.style.height     = 'auto';
-  mirror.style.whiteSpace = 'pre-wrap';
+function initScrollMode() {
+  const ed     = document.getElementById('editor');
+  const scroll = document.getElementById('editor-scroll');
+  const viewH  = scroll.clientHeight;
+  const lineH  = parseFloat(getComputedStyle(ed).lineHeight) || 34;
 
-  const before = document.createTextNode(
-    textarea.value.substring(0, textarea.selectionStart)
-  );
-  mirror.appendChild(before);
-
-  const caretSpan = document.createElement('span');
-  caretSpan.textContent = '\u200b'; // zero-width space
-  mirror.appendChild(caretSpan);
-
-  document.body.appendChild(mirror);
-  const caretTop = caretSpan.offsetTop;
-  document.body.removeChild(mirror);
-
-  return caretTop;
+  if (state.scrollMode === 'typewriter') {
+    ed.style.paddingTop    = `${Math.max(0, viewH / 2 - lineH / 2)}px`;
+    ed.style.paddingBottom = `${viewH / 2}px`;
+    requestAnimationFrame(applyTypewriterScroll);
+  } else {
+    ed.style.paddingTop    = '64px';
+    ed.style.paddingBottom = '64px';
+    scroll.scrollTop = scroll.scrollHeight;
+  }
 }
 
 function applyTypewriterScroll() {
-  const ed     = document.getElementById('editor');
+  if (state.scrollMode !== 'typewriter') return;
+
   const scroll = document.getElementById('editor-scroll');
+  const ed     = document.getElementById('editor');
   const viewH  = scroll.clientHeight;
   const lineH  = parseFloat(getComputedStyle(ed).lineHeight) || 34;
 
-  // caretTop is relative to the top of the textarea content
-  // Add the stage's paddingTop (which equals viewH/2) to get
-  // the offset from the top of the scrollable content
-  const paddingTop = viewH / 2;
-  const caretTop   = getCaretTopOffset(ed);
-  const absoluteCaretTop = paddingTop + caretTop;
+  // Ask the browser directly where the caret is on screen
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
 
-  // We want the caret line centered: scrollTop = caretTop - viewH/2 + lineH/2
-  const targetScroll = absoluteCaretTop - viewH / 2 + lineH / 2;
+  const range    = sel.getRangeAt(0).cloneRange();
+  range.collapse(true);
+  const caretRect  = range.getBoundingClientRect();
+  if (!caretRect || caretRect.height === 0) return; // nothing selected yet
 
-  // Smooth scroll — use scrollTo with behavior for iOS momentum feel
-  scroll.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+  // Convert from viewport coords to scroll-container coords
+  const scrollRect  = scroll.getBoundingClientRect();
+  const caretInScroll = caretRect.top - scrollRect.top + scroll.scrollTop;
+
+  // Set scrollTop so that line sits at vertical center
+  const target = caretInScroll - viewH / 2 + lineH / 2;
+  scroll.scrollTop = Math.max(0, target);
 }
 
-function initTypewriter() {
-  const ed     = document.getElementById('editor');
-  const scroll = document.getElementById('editor-scroll');
-  const viewH  = scroll.clientHeight;
-  const lineH  = parseFloat(getComputedStyle(ed).lineHeight) || 34;
-
-  // Top padding = half viewport so first line starts at center
-  // Bottom padding = half viewport so last line can scroll to center
-  ed.style.paddingTop    = `${viewH / 2 - lineH / 2}px`;
-  ed.style.paddingBottom = `${viewH / 2}px`;
-
-  // Reset scroll to top (cursor is at start)
-  scroll.scrollTop = 0;
+/* ── Helpers to read/write contenteditable as plain text ── */
+function getEditorText() {
+  const ed = document.getElementById('editor');
+  // innerText preserves newlines correctly across browsers
+  return ed.innerText.replace(/\n$/, ''); // trim trailing newline browsers add
 }
 
+function setEditorText(text) {
+  const ed = document.getElementById('editor');
+  ed.innerHTML = '';
+  if (!text) return;
+  // Insert text as plain text nodes with <br> for newlines
+  text.split('\n').forEach((line, i, arr) => {
+    ed.appendChild(document.createTextNode(line));
+    if (i < arr.length - 1) ed.appendChild(document.createElement('br'));
+  });
+  // Move cursor to end
+  const range = document.createRange();
+  const sel   = window.getSelection();
+  range.selectNodeContents(ed);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+/* ── Editor: input ── */
 document.getElementById('editor').addEventListener('input', function() {
-  state.text = this.value;
+  state.text = getEditorText();
   updateStats();
-  applyTypewriterScroll();
+  if (state.scrollMode === 'typewriter') {
+    applyTypewriterScroll();
+  } else {
+    const scroll = document.getElementById('editor-scroll');
+    scroll.scrollTop = scroll.scrollHeight;
+  }
   if (!state.freeWrite) { updateProgress(); resetCountdown(); checkGoalMet(); }
 });
 
-// Reposition on cursor movement (easy mode arrow keys, clicks)
+/* ── Editor: cursor movement ── */
 document.getElementById('editor').addEventListener('keyup', function(e) {
   const navKeys = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Enter'];
-  if (navKeys.includes(e.key)) applyTypewriterScroll();
+  if (navKeys.includes(e.key) && state.scrollMode === 'typewriter') {
+    applyTypewriterScroll();
+  }
 });
 
-document.getElementById('editor').addEventListener('click', applyTypewriterScroll);
-
-window.addEventListener('resize', () => {
-  initTypewriter();
-  applyTypewriterScroll();
+document.getElementById('editor').addEventListener('click', () => {
+  if (state.scrollMode === 'typewriter') applyTypewriterScroll();
 });
 
-/* Hard mode — block backspace, delete, and all cursor movement keys */
+window.addEventListener('resize', () => { initScrollMode(); });
+
+/* ── Hard mode: block delete and cursor keys ── */
 document.getElementById('editor').addEventListener('keydown', function(e) {
   if (state.mode !== 'hard') return;
-
-  const blocked = [
-    'Backspace', 'Delete',
-    'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-    'Home', 'End', 'PageUp', 'PageDown',
-  ];
-
-  // Also block Ctrl/Cmd + A (select all), Ctrl/Cmd + Z (undo),
-  // Ctrl/Cmd + X (cut), and Ctrl/Cmd + Backspace (delete word)
+  const blocked    = ['Backspace','Delete','ArrowLeft','ArrowRight',
+                      'ArrowUp','ArrowDown','Home','End','PageUp','PageDown'];
   const isModified = e.ctrlKey || e.metaKey;
-  if (isModified && ['a', 'z', 'x', 'Backspace'].includes(e.key)) {
-    e.preventDefault();
-    return;
+  if (isModified && ['a','z','x','Backspace'].includes(e.key)) {
+    e.preventDefault(); return;
   }
-
-  if (blocked.includes(e.key)) {
-    e.preventDefault();
-  }
+  if (blocked.includes(e.key)) e.preventDefault();
 });
 
-function wordCount(t) { return t.trim() === '' ? 0 : t.trim().split(/\s+/).length; }
+function wordCount(t) {
+  // Normalize whitespace — contenteditable innerText can have \n and \u00a0
+  const clean = (t || '').replace(/[\u00a0\n]+/g, ' ').trim();
+  return clean === '' ? 0 : clean.split(/\s+/).length;
+}
 
 function updateStats() {
   const wc = wordCount(state.text);
@@ -1285,7 +1294,7 @@ function finishSession() {
 
   // Disable the editor so text is preserved but not editable until they choose
   const ed = document.getElementById('editor');
-  ed.readOnly = true;
+  ed.contentEditable = 'false';
   ed.style.opacity = '0.5';
 
   // Freeze the top bar — hide redo goal, change finish to greyed out
@@ -1317,13 +1326,12 @@ function goSetup() {
 ═══════════════════════════════════════════════════════════ */
 
 function resetEditor() {
-  // Re-enable editor and restore top bar for next session
   const ed = document.getElementById('editor');
-  ed.readOnly = false;
+  ed.contentEditable = 'true';
   ed.style.opacity = '';
   document.getElementById('completion-panel').classList.remove('visible');
   document.getElementById('autosave-indicator').style.display = '';
-  document.querySelector('.top-btn:not(.primary)').style.display = ''; // restore redo goal
+  document.querySelector('.top-btn:not(.primary)').style.display = '';
 }
 
 function cpKeepWriting() {
