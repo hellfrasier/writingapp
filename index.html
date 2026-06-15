@@ -1464,6 +1464,12 @@ function applyURLParams() {
     }
   }
 
+  // ── scrollmode ─────────────────────────────────────────────
+  const scrollmode = (params.get('scrollmode') || '').toLowerCase();
+  if (['doc', 'typewriter'].includes(scrollmode)) {
+    state.scrollMode = scrollmode;
+  }
+
   // ── autostart ─────────────────────────────────────────────
   if (params.get('autostart') === 'true') {
     // Small delay so the page paints before jumping into session
