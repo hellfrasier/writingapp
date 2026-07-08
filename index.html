@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dangerous Writer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,300&display=swap" rel="stylesheet">
-<!-- Times New Roman and Helvetica/Arial are system fonts — no import needed -->
+<!-- Google Fonts removed — using system fonts only for offline compatibility -->
 <style>
 /* ── Reset & Base ─────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -279,7 +278,7 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
   width: 100%;
   min-height: 2em;
   background: transparent; border: none; outline: none;
-  font-family: inherit; font-size: 18px; line-height: 1.9;
+  font-family: inherit; font-size: var(--editor-fontsize, 18px); line-height: 1.9;
   color: var(--text); caret-color: var(--accent); transition: color 0.2s;
   white-space: pre-wrap;
   word-break: break-word;
@@ -313,9 +312,9 @@ input[type="number"]:focus { border-bottom-color: var(--accent); }
 
 .redo-panel {
   background: var(--bg); border: 1px solid var(--border);
-  padding: 40px 44px; width: 100%; max-width: 400px;
+  padding: 32px 36px; width: 100%; max-width: 400px;
   display: flex; flex-direction: column; position: relative;
-  max-height: 90vh; overflow-y: auto;
+  max-height: 85vh; overflow-y: auto;
 }
 .redo-title {
   font-size: clamp(18px, 3vw, 26px); font-weight: 700;
@@ -498,7 +497,7 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
       dangerous<span class="dim">_</span>writer<span class="blink">▊</span>
     </h1>
     <p class="setup-sub">stop typing for 5 seconds → everything is gone</p>
-    <p class="version-tag">Version 1.4.4</p>
+    <p class="version-tag">Version 1.5</p>
 
     <!-- Recovery banner — shown if unsaved text exists in localStorage -->
     <div id="recovery-banner">
@@ -547,6 +546,17 @@ textarea#reason-input::placeholder { color: rgba(255,80,80,0.3); font-style: ita
         <button class="t-opt active" data-font="mono"  onclick="setFont('mono')">Default</button>
         <button class="t-opt"        data-font="serif" onclick="setFont('serif')">Times New Roman</button>
         <button class="t-opt"        data-font="sans"  onclick="setFont('sans')">Helvetica</button>
+      </div>
+    </div>
+
+    <!-- Font Size -->
+    <div class="t-section">
+      <div class="t-label">font size</div>
+      <div class="t-options t-options-inline">
+        <button class="t-opt"      data-fontsize="16px" onclick="setFontSize('16px')">Small</button>
+        <button class="t-opt active" data-fontsize="18px" onclick="setFontSize('18px')">Default</button>
+        <button class="t-opt"      data-fontsize="20px" onclick="setFontSize('20px')">Large</button>
+        <button class="t-opt"      data-fontsize="24px" onclick="setFontSize('24px')">XL</button>
       </div>
     </div>
 
@@ -724,6 +734,7 @@ const state = {
   goalType: 'time', goalAmount: 5, theme: 'dark',
   mode: 'easy',       // 'easy' | 'hard'
   font: 'mono',       // 'mono' | 'serif' | 'sans'
+  fontSize: '18px',   // editor font size
   scrollMode: 'doc',  // 'doc' | 'typewriter'
   text: '', savedText: '',
   countdown: DANGER_WINDOW, elapsed: 0,
@@ -862,7 +873,7 @@ function setMode(mode) {
 }
 
 const FONT_MAP = {
-  mono:  "'JetBrains Mono', 'Courier New', monospace",
+  mono:  "'Monaco', 'Menlo', 'Courier New', monospace",
   serif: "'Times New Roman', Times, serif",
   sans:  "Helvetica, Arial, sans-serif",
 };
@@ -872,6 +883,16 @@ function setFont(font) {
   document.querySelectorAll('[data-font]').forEach(b =>
     b.classList.toggle('active', b.dataset.font === font));
   document.documentElement.style.setProperty('--editor-font', FONT_MAP[font]);
+}
+
+function setFontSize(size) {
+  state.fontSize = size;
+  document.querySelectorAll('[data-fontsize]').forEach(b =>
+    b.classList.toggle('active', b.dataset.fontsize === size));
+  document.documentElement.style.setProperty('--editor-fontsize', size);
+  // Also update editor immediately if it exists
+  const ed = document.getElementById('editor');
+  if (ed) ed.style.fontSize = size;
 }
 
 function applyBodyClass() {
@@ -985,6 +1006,7 @@ function startSession() {
   ed.classList.remove('danger-text');
   ed.contentEditable = 'true';
   ed.style.opacity = '';
+  ed.style.fontSize = state.fontSize;
   document.getElementById('writing').classList.remove('danger-bg');
   document.getElementById('completion-panel').classList.remove('visible');
 
@@ -1168,8 +1190,11 @@ function applyTypewriterScroll() {
 /* ── Helpers to read/write contenteditable as plain text ── */
 function getEditorText() {
   const ed = document.getElementById('editor');
-  // innerText preserves newlines correctly across browsers
-  return ed.innerText.replace(/\n$/, ''); // trim trailing newline browsers add
+  let text = (ed.innerText || '').replace(/\r\n/g, '\n'); // normalize line endings to LF
+  // Collapse 3+ consecutive newlines to exactly 2 (blank line)
+  // This prevents contenteditable div-structure artifacts from creating extra spacing
+  text = text.replace(/\n{3,}/g, '\n\n');
+  return text.trim();
 }
 
 function setEditorText(text) {
@@ -1290,7 +1315,11 @@ function finishSession() {
   // Show the panel and scroll it into view
   const panel = document.getElementById('completion-panel');
   panel.classList.add('visible');
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Scroll to bottom to show the completion panel
+  const scroll = document.getElementById('editor-scroll');
+  setTimeout(() => {
+    scroll.scrollTop = scroll.scrollHeight;
+  }, 50);
 
   // Disable the editor so text is preserved but not editable until they choose
   const ed = document.getElementById('editor');
